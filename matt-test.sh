@@ -18,6 +18,8 @@ PBFS=(-f pbfs/vanHeukelum-cage15.bin -a p -c)
 CSCALE_FIB=$(($FIB-5))
 # Default: *10
 CSCALE_INTSUM=$(($INTSUM*10))
+# Default: -n 20000000
+CSCALE_FFT=(-n 20000000)
 # Default: 1
 NWORKERS=1
 # Default: 0
@@ -148,24 +150,31 @@ build()
     cd stress_test
 }
 
+# $1 = file ; $2 = f flags ; $3 = .o files ; $4 = linked libraries
 compile_test_internal()
 {
     rm -rf $1_$CONFSUF
-    $CC $OPT -g -c -DTIMING_COUNT=$REPS ${@:2} -o $1.o $1.c
-    $CC $OPT -S -DTIMING_COUNT=$REPS ${@:2} -o $1.s $1.c
-    $CC $OPT ${@:2} ktiming.o $1.o -o $1_$CONFSUF
+    $CC $OPT -g -c -DTIMING_COUNT=$REPS $2 -o $1.o $1.c
+    $CC $OPT -S -DTIMING_COUNT=$REPS $2 -o $1.s $1.c
+    $CC $OPT $2 $3 $1.o $4 -o $1_$CONFSUF
 }
 
 compile_test()
 {
     echo "${COMMENT}Compiling $1"
-    compile_test_internal $1 -fopencilk
+    compile_test_internal $1 "-fopencilk" "ktiming.o"
 }
 
 compile_cilkscale_test()
 {
-    echo "${COMMENT}Compiling $1 with cilkscale test"
-    compile_test_internal $1 -fopencilk -fcilktool=cilkscale
+    echo "${COMMENT}Compiling $1 with cilkscale"
+    compile_test_internal $1 "-fopencilk -fcilktool=cilkscale" "ktiming.o"
+}
+
+compile_cilkscale_test_fft()
+{
+    echo "${COMMENT}Compiling $1 with cilkscale"
+    compile_test_internal $1 "-fopencilk -fcilktool=cilkscale" "ktiming.o getoptions.o" "-lm"
 }
 
 compile_with_make()
@@ -181,6 +190,7 @@ compile()
     echo "Compiling tests"
 
     $CC $OPT -g -c -DTIMING_COUNT=$1 -o ktiming.o ktiming.c
+    $CC $OPT -g -c -o getoptions.o getoptions.c
     
     compile_test intsum_check
     compile_test fib
@@ -190,8 +200,8 @@ compile()
     compile_with_make bfs pbfs
     
     compile_cilkscale_test cilkscale_fib
-
     compile_cilkscale_test cilkscale_intsum
+    compile_cilkscale_test_fft fft
     
     rm -rf peer_set_pure_test_$CONFSUF
     $CC $OPT -g -c -DTIMING_COUNT=$REPS -fopencilk -fno-vectorize -o peer_set_pure_test.o peer_set_pure_test.c
@@ -266,6 +276,11 @@ test_cilkscale_intsum()
     run_test "cilkscale (intsum)" cilkscale_parse cilkscale_intsum $CSCALE_INTSUM
 }
 
+test_fft()
+{
+    run_test "cilkscale (fft)" cilkscale_parse fft ${CSCALE_FFT[@]}
+}
+
 make_runtime()
 {
     build # &> /dev/null
@@ -285,6 +300,7 @@ run_tests()
     test_bfs
     test_cilkscale_fib
     test_cilkscale_intsum
+    test_fft
 }
 
 build_and_test()
