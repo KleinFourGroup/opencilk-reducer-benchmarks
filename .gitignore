@@ -1,0 +1,19 @@
+# Ignore all
+*
+
+# Unignore all with extensions
+!*.*
+
+# Unignore all dirs
+!*/
+
+!Makefile
+
+### Above combination will ignore all files without extension ###
+
+# Ignore files with extension `.o` & `.s` & `.ll`
+*.o
+*.s
+*.ll
+*.bin
+*.txt
