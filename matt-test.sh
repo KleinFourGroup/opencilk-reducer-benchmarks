@@ -1,6 +1,6 @@
-CC=/home/matt/opencilk/build/bin/clang
-CPP=/home/matt/opencilk/build/bin/clang++
-SENT=/home/matt/opencilk/opencilk-project/cheetah/include/cilk/sentinel.h
+CC=$HOME/opencilk/build/bin/clang
+CPP=$HOME/opencilk/build/bin/clang++
+SENT=$HOME/opencilk/opencilk-project/cheetah/include/cilk/sentinel.h
 OPT=-O3
 
 # Default: *100
@@ -164,7 +164,7 @@ compile()
     compile_test intlist
     
     rm -rf bfs_$CONFSUF
-    cd pbfs; make clean; make; cd ..
+    cd pbfs; make -s clean; make -s; cd ..
     cp pbfs/bfs bfs_$CONFSUF
     
     compile_cilkscale_test cilkscale_fib

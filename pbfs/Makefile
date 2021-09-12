@@ -1,7 +1,7 @@
 CC=gcc
 CFLAGS= -O3
 CILK=/home/matt/opencilk/build/bin/clang++
-CILKFLAGS= -O3 -fopencilk
+CILKFLAGS= -O3 -fopencilk -w
 LDFLAGS= -L$(CURDIR)
 AR=ar
 
