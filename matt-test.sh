@@ -203,6 +203,7 @@ compile()
     
     compile_with_make bfs pbfs
     compile_with_make BlackScholes BlackScholes
+    compile_with_make Mandelbrot Mandelbrot
     
     rm -rf peer_set_pure_test_$CONFSUF
     $CC $OPT -g -c -DTIMING_COUNT=$REPS -fopencilk -fno-vectorize -o peer_set_pure_test.o peer_set_pure_test.c
@@ -229,9 +230,10 @@ clean_exe()
     
     rm -rf bfs_*
     rm -rf BlackScholes_*
+    rm -rf Mandelbrot_*
 
     rm -rf peer_set_pure_test_*
-    rm -rf *.o *.s *.ll
+    rm -rf *.o *.s *.ll *.bmp *.valsig
 }
 
 test_header()
@@ -292,6 +294,11 @@ test_BlackScholes()
     run_test "BlackScholes" cilkscale_parse BlackScholes # No arguments
 }
 
+test_Mandelbrot()
+{
+    run_test "Mandelbrot" cilkscale_parse Mandelbrot # No arguments
+}
+
 make_runtime()
 {
     build # &> /dev/null
@@ -315,6 +322,7 @@ run_tests()
     
     test_bfs
     test_BlackScholes
+    test_Mandelbrot
 }
 
 build_and_test()
