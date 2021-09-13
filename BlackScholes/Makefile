@@ -1,41 +1,33 @@
-#COMPILER ?= llvm-pir
-COMPILER ?= gcc
+CC := $(HOME)/opencilk/build/bin/clang
+CXX := $(HOME)/opencilk/build/bin/clang++
 
-# CXX := g++
-SRCDIR := src
-BUILDDIR := release
-EXTRA_CFLAGS ?=
-# LIBFLAGS := -fcilkplus $(EXTRA_LDFLAGS) # -vec-report1
-CILKFLAG ?= -fcilkplus
-LIBFLAGS := $(CILKFLAG) $(EXTRA_LDFLAGS) # -vec-report1
+OPT := -O3
+CILKFLAGS := -fopencilk -fcilktool=cilkscale
+
+CFLAGS :=
+LIBFLAGS := 
 
 ifdef perf_num
-	EXTRA_CFLAGS += -D PERF_NUM
+	CFLAGS += -D PERF_NUM
 endif
 
-TARGET := $(BUILDDIR)/BlackScholes
+TARGET := BlackScholes
+SOURCES := $(wildcard *.cpp)
+OBJECTS := $(SOURCES:.cpp=.o)
 
-# icpc: $(TARGET)
-
-# gcc: CXX := g++
-# gcc: CFLAGS := -O3 -mfpmath=sse -flto 
-# gcc: $(TARGET)
-
-SOURCES := $(wildcard $(SRCDIR)/*.cpp)
-OBJECTS := $(patsubst $(SRCDIR)/%,$(BUILDDIR)/%,$(SOURCES:.cpp=.o))
-
-include $(COMPILER).mk
+%.o: %.cpp
+	$(CXX) $(OPT) -g -c $(CILKFLAGS) $(CFLAGS) -o $@ $< 
 
 $(TARGET): $(OBJECTS)
-	@echo " Linking..."
-	@$(CXX) $^ $(LIBFLAGS) -o $(TARGET)
+	$(CXX) $(OPT) $(CILKFLAGS) $^ $(LIBFLAGS) -o $(TARGET)
+
+all: $(TARGET)
 
 run: $(TARGET)
-	./$(TARGET) $(option)
+	./$(TARGET)
 
 clean:
-	@echo " Cleaning..."
-	@rm -fr $(BUILDDIR) $(TARGET) 2>/dev/null || true
-	@rm -f *.bmp *.valsig
+	rm -fr $(TARGET) $(OBJECTS)
+	rm -f *.bmp *.valsig
 
-.PHONY: clean
+.PHONY: all clean

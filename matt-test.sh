@@ -179,7 +179,7 @@ compile_cilkscale_test_fft()
 
 compile_with_make()
 {
-    echo "${COMMENT}Compiling $1 with Makefile in $2"
+    echo "${COMMENT}Compiling $1 with $2/Makefile"
     rm -rf $1_$CONFSUF
     cd $2; make -s clean; make -s; cd ..
     cp $2/$1 $1_$CONFSUF
@@ -197,11 +197,12 @@ compile()
     compile_test histogram
     compile_test intlist
     
-    compile_with_make bfs pbfs
-    
     compile_cilkscale_test cilkscale_fib
     compile_cilkscale_test cilkscale_intsum
     compile_cilkscale_test_fft fft
+    
+    compile_with_make bfs pbfs
+    compile_with_make BlackScholes BlackScholes
     
     rm -rf peer_set_pure_test_$CONFSUF
     $CC $OPT -g -c -DTIMING_COUNT=$REPS -fopencilk -fno-vectorize -o peer_set_pure_test.o peer_set_pure_test.c
@@ -221,9 +222,14 @@ clean_exe()
     rm -rf fib_*
     rm -rf histogram_*
     rm -rf intlist_*
-    rm -rf bfs_*
+
     rm -rf cilkscale_fib_*
     rm -rf cilkscale_intsum_*
+    rm -rf fft_*
+    
+    rm -rf bfs_*
+    rm -rf BlackScholes_*
+
     rm -rf peer_set_pure_test_*
     rm -rf *.o *.s *.ll
 }
@@ -278,7 +284,12 @@ test_cilkscale_intsum()
 
 test_fft()
 {
-    run_test "cilkscale (fft)" cilkscale_parse fft ${CSCALE_FFT[@]}
+    run_test "fft" cilkscale_parse fft ${CSCALE_FFT[@]}
+}
+
+test_BlackScholes()
+{
+    run_test "BlackScholes" cilkscale_parse BlackScholes # No arguments
 }
 
 make_runtime()
@@ -292,15 +303,18 @@ run_tests()
     echo "Running tests"
     touch $PERF
     echo "${COMMENT}Performance data in $PERF"
-    #test_header $1
+
     test_intsum
     test_fib
     test_histogram
     test_intlist
-    test_bfs
+
     test_cilkscale_fib
     test_cilkscale_intsum
     test_fft
+    
+    test_bfs
+    test_BlackScholes
 }
 
 build_and_test()
