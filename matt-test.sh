@@ -4,6 +4,13 @@ SENT=$HOME/opencilk/opencilk-project/cheetah/include/cilk/sentinel.h
 PERF=perf.csv
 OPT=-O3
 
+# Default: 5
+REPS=5
+# Default: find /usr -name "libprofiler.*"
+LIBPROF=/usr/lib/x86_64-linux-gnu/libprofiler.so.0
+# Default: 1
+PROFILE=0
+
 # Default: *100
 INTSUM=$((25000000*1))
 # Default: +3
@@ -24,8 +31,6 @@ CSCALE_FFT=(-n 20000000)
 NWORKERS=1
 # Default: 0
 FULLTEST=0
-# Default: 5
-REPS=5
 
 # Overhead codes
 SG=0
@@ -51,6 +56,14 @@ run_exe()
     CILK_NWORKERS=$NWORKERS ./$1_$CONFSUF ${@:2} 2> /dev/null
 }
 
+profile_exe()
+{
+    # echo $@
+    LD_PRELOAD=$LIBPROF CPUPROFILE=$1_$CONFSUF.prof CILK_NWORKERS=$NWORKERS ./$1_$CONFSUF ${@:2} 2> /dev/null
+    google-pprof --text ./$1_$CONFSUF ./$1_$CONFSUF.prof > logs/$1_${CONFSUF}_profile.txt
+    rm -f $1_$CONFSUF.prof
+}
+
 default_parse()
 {
     RES="$(run_exe $@)"
@@ -66,33 +79,6 @@ cilkscale_parse()
     ELTS=$(echo $RES | cut -d',' -f1)
     printf "$ELTS"
     return $CODE
-}
-
-# $1 = test name ; $2 = exe name ; $3 = input
-# $1 = test name ; $2 = parser ; $3 = exe name ; $4 = input
-run_overhead_test()
-{
-    # echo $@
-    if [ ! -e $3_$CONFSUF ]
-    then
-        printf "$1 compilation failed!\n"
-        return 1
-    fi
-    ERR=0
-    printf "$1$HEADSEP$CONF$SEP"
-    $2 $3 ${@:4} 0
-    ERR=$(($ERR+$?))
-    printf "$SEP"
-    $2 $3 ${@:4} 1
-    ERR=$(($ERR+$?))
-    printf "$SEP"
-    $2 $3 ${@:4} 3
-    ERR=$(($ERR+$?))
-    printf "$SEP"
-    $2 $3 ${@:4} 2
-    ERR=$(($ERR+$?))
-    printf "$SEP$ERR"
-    printf "%s\n" "$ENDROW"
 }
 
 run_test()
@@ -112,6 +98,19 @@ run_test()
     printf "$PARSED$SEP$ERR" >> $PERF
     printf "runtime: $PARSED; return code: $ERR\n"
     printf "%s\n" "$ENDROW" >> $PERF
+}
+
+profile_test()
+{
+    # echo $@
+    if [ ! -e $2_$CONFSUF ]
+    then
+        printf "$1 compilation failed!\n"
+        return 1
+    else
+        printf "${COMMENT}Profiling test $1 with inputs '%s'...\n" "${*:4}"
+    fi
+    profile_exe $2 ${@:3}
 }
 
 config()
@@ -143,10 +142,10 @@ build()
 {
     LOC="$(pwd)"
     echo "Building cheetah"
-    echo "${COMMENT}cmake output in $LOC/build_$CONFSUF.txt"
+    echo "${COMMENT}cmake output in $LOC/logs/build_${CONFSUF}_log.txt"
     cd ..
     rm ./build/lib/clang/10.0.1/lib/x86_64-unknown-linux-gnu/libopencilk-abi.bc
-    sh opencilk.sh build &> $LOC/build_$CONFSUF.txt
+    sh opencilk.sh build &> $LOC/logs/build_${CONFSUF}_log.txt
     cd stress_test
 }
 
@@ -214,6 +213,7 @@ compile()
 clean_all()
 {
     rm -rf build_*.txt perf.csv
+    rm -rf  *.bmp *.valsig *.prof logs/
     clean_exe
 }
 
@@ -233,70 +233,97 @@ clean_exe()
     rm -rf Mandelbrot_*
 
     rm -rf peer_set_pure_test_*
-    rm -rf *.o *.s *.ll *.bmp *.valsig
-}
-
-test_header()
-{
-    printf "TEST$HEADSEP"
-    if [ $1 -eq 1 ]
-    then
-        
-        printf "SG$SEP"
-        printf "SR$SEP"
-        printf "CG$SEP"
-    fi
-    printf "CR%s\n" "$ENDROW"
+    rm -rf *.o *.s *.ll
 }
 
 test_intsum()
 {
     run_test "intsum" default_parse intsum_check $INTSUM $CR
+    if [ ! $PROFILE -eq 0 ]
+    then
+        profile_test "intsum" intsum_check $INTSUM $CR
+    fi
 }
 
 test_fib()
 {
     run_test "fib" default_parse fib $FIB $CR
+    if [ ! $PROFILE -eq 0 ]
+    then
+        profile_test "fib" fib $FIB $CR
+        fi
 }
 
 test_histogram()
 {
     run_test "histogram" default_parse histogram ${HIST[@]} $CR
+    if [ ! $PROFILE -eq 0 ]
+    then
+        profile_test "histogram" histogram ${HIST[@]} $CR
+    fi
 }
 
 test_intlist()
 {
     run_test "intlist" default_parse intlist $INTLIST $CR
+    if [ ! $PROFILE -eq 0 ]
+    then
+        profile_test "intlist" intlist $INTLIST $CR
+    fi
 }
 
 test_bfs()
 {
     run_test "PBFS" default_parse bfs ${PBFS[@]}
+    if [ ! $PROFILE -eq 0 ]
+    then
+        profile_test "PBFS" bfs ${PBFS[@]}
+    fi
 }
 
 test_cilkscale_fib()
 {
     run_test "cilkscale (fib)" cilkscale_parse cilkscale_fib $CSCALE_FIB
+    if [ ! $PROFILE -eq 0 ]
+    then
+        profile_test "cilkscale (fib)" cilkscale_fib $CSCALE_FIB
+    fi
 }
 
 test_cilkscale_intsum()
 {
     run_test "cilkscale (intsum)" cilkscale_parse cilkscale_intsum $CSCALE_INTSUM
+    if [ ! $PROFILE -eq 0 ]
+    then
+        profile_test "cilkscale (intsum)" cilkscale_intsum $CSCALE_INTSUM
+    fi
 }
 
 test_fft()
 {
     run_test "fft" cilkscale_parse fft ${CSCALE_FFT[@]}
+    if [ ! $PROFILE -eq 0 ]
+    then
+        profile_test "fft" fft ${CSCALE_FFT[@]}
+    fi
 }
 
 test_BlackScholes()
 {
     run_test "BlackScholes" cilkscale_parse BlackScholes # No arguments
+    if [ ! $PROFILE -eq 0 ]
+    then
+        profile_test "BlackScholes" BlackScholes # No arguments
+    fi
 }
 
 test_Mandelbrot()
 {
     run_test "Mandelbrot" cilkscale_parse Mandelbrot # No arguments
+    if [ ! $PROFILE -eq 0 ]
+    then
+        profile_test "Mandelbrot" Mandelbrot # No arguments
+    fi
 }
 
 make_runtime()
@@ -332,13 +359,8 @@ build_and_test()
     run_tests
 }
 
-#config 0 0 0
-#build # &> /dev/null
-#compile 1
-#CILK_NWORKERS=1 ./intsum_check $INTSUM 2
-#CILK_NWORKERS=1 ./fib $FIB 2
-
 clean_all
+mkdir -p logs
 build_and_test 0 0 0
 #build_and_test 0 1 0
 #build_and_test 0 0 1
@@ -350,6 +372,46 @@ build_and_test 0 0 0
 clean_exe
 
 #Old funcs
+
+test_header()
+{
+    printf "TEST$HEADSEP"
+    if [ $1 -eq 1 ]
+    then
+        
+        printf "SG$SEP"
+        printf "SR$SEP"
+        printf "CG$SEP"
+    fi
+    printf "CR%s\n" "$ENDROW"
+}
+
+# $1 = test name ; $2 = exe name ; $3 = input
+# $1 = test name ; $2 = parser ; $3 = exe name ; $4 = input
+run_overhead_test()
+{
+    # echo $@
+    if [ ! -e $3_$CONFSUF ]
+    then
+        printf "$1 compilation failed!\n"
+        return 1
+    fi
+    ERR=0
+    printf "$1$HEADSEP$CONF$SEP"
+    $2 $3 ${@:4} 0
+    ERR=$(($ERR+$?))
+    printf "$SEP"
+    $2 $3 ${@:4} 1
+    ERR=$(($ERR+$?))
+    printf "$SEP"
+    $2 $3 ${@:4} 3
+    ERR=$(($ERR+$?))
+    printf "$SEP"
+    $2 $3 ${@:4} 2
+    ERR=$(($ERR+$?))
+    printf "$SEP$ERR"
+    printf "%s\n" "$ENDROW"
+}
 
 test_intsum_old()
 {
