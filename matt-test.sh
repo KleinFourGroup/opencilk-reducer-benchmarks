@@ -154,6 +154,7 @@ compile_test_internal()
 {
     rm -rf $1_$CONFSUF
     $CC $OPT -g -c -DTIMING_COUNT=$REPS $2 -o $1.o $1.c
+    $CC $OPT -S -emit-llvm -DTIMING_COUNT=$REPS $2 -o $1.ll $1.c
     $CC $OPT -S -DTIMING_COUNT=$REPS $2 -o $1.s $1.c
     $CC $OPT $2 $3 $1.o $4 -o $1_$CONFSUF
 }
@@ -361,8 +362,8 @@ build_and_test()
 
 clean_all
 mkdir -p logs
-build_and_test 0 0 0
-#build_and_test 0 1 0
+#build_and_test 0 0 0
+build_and_test 0 1 0
 #build_and_test 0 0 1
 #build_and_test 0 1 1
 #build_and_test 1 0 0
