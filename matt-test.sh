@@ -59,8 +59,8 @@ run_exe()
 profile_exe()
 {
     # echo $@
-    LD_PRELOAD=$LIBPROF CPUPROFILE=$1_$CONFSUF.prof CILK_NWORKERS=$NWORKERS ./$1_$CONFSUF ${@:2} 2> /dev/null
-    google-pprof --text ./$1_$CONFSUF ./$1_$CONFSUF.prof > logs/$1_${CONFSUF}_profile.txt
+    LD_PRELOAD=$LIBPROF CPUPROFILE=$1_$CONFSUF.prof CILK_NWORKERS=$NWORKERS ./$1_$CONFSUF ${@:2} &> /dev/null
+    google-pprof --text ./$1_$CONFSUF ./$1_$CONFSUF.prof &> logs/$1_${CONFSUF}_profile.txt
     rm -f $1_$CONFSUF.prof
 }
 
@@ -108,7 +108,7 @@ profile_test()
         printf "$1 compilation failed!\n"
         return 1
     else
-        printf "${COMMENT}Profiling test $1 with inputs '%s'...\n" "${*:4}"
+        printf "${COMMENT}Profiling test $1 with inputs '%s'...\n" "${*:3}"
     fi
     profile_exe $2 ${@:3}
 }
