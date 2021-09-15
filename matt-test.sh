@@ -1,5 +1,5 @@
 CC=$HOME/opencilk/build/bin/clang
-CPP=$HOME/opencilk/build/bin/clang++
+CXX=$HOME/opencilk/build/bin/clang++
 SENT=$HOME/opencilk/opencilk-project/cheetah/include/cilk/sentinel.h
 PERF=perf.csv
 OPT=-O3
@@ -84,12 +84,13 @@ cilkscale_parse()
 run_test()
 {
     # echo $@
+    DATE=$(date "+%T")
     if [ ! -e $3_$CONFSUF ]
     then
-        printf "$1 compilation failed!\n"
+        printf "${COMMENT}${DATE}: $1 compilation failed!\n"
         return 1
     else
-        printf "${COMMENT}Running test $1 with inputs '%s'... " "${*:4}"
+        printf "${COMMENT}${DATE}: Running test $1 with inputs '%s'... " "${*:4}"
     fi
     ERR=0
     printf "$1$HEADSEP$CONF$SEP" >> $PERF
@@ -103,12 +104,13 @@ run_test()
 profile_test()
 {
     # echo $@
+    DATE=$(date "+%T")
     if [ ! -e $2_$CONFSUF ]
     then
-        printf "$1 compilation failed!\n"
+        printf "${COMMENT}${DATE}: $1 compilation failed!\n"
         return 1
     else
-        printf "${COMMENT}Profiling test $1 with inputs '%s'...\n" "${*:3}"
+        printf "${COMMENT}${DATE}: Profiling test $1 with inputs '%s'...\n" "${*:3}"
     fi
     profile_exe $2 ${@:3}
 }
@@ -116,6 +118,7 @@ profile_test()
 config()
 {
     echo "$SECTION Runing test | SPA: $1; Inline: $2; Peer: $3 $SECTION"
+    date
     CONF=$1"$SEP"$2"$SEP"$3
     CONFSUF=$1$2$3
     make_sentinel $((1-$1)) $3 0 1 1 $2 $2 1
@@ -150,7 +153,7 @@ build()
 }
 
 # $1 = file ; $2 = f flags ; $3 = .o files ; $4 = linked libraries
-compile_test_internal()
+compile_c_test_internal()
 {
     rm -rf $1_$CONFSUF
     $CC $OPT -g -c -DTIMING_COUNT=$REPS $2 -o $1.o $1.c
@@ -159,22 +162,38 @@ compile_test_internal()
     $CC $OPT $2 $3 $1.o $4 -o $1_$CONFSUF
 }
 
+# $1 = file ; $2 = f flags ; $3 = .o files ; $4 = linked libraries
+compile_cxx_test_internal()
+{
+    rm -rf $1_$CONFSUF
+    $CXX $OPT -g -c -DTIMING_COUNT=$REPS $2 -o $1.o $1.cpp
+    $CXX $OPT -S -emit-llvm -DTIMING_COUNT=$REPS $2 -o $1.ll $1.cpp
+    $CXX $OPT -S -DTIMING_COUNT=$REPS $2 -o $1.s $1.cpp
+    $CXX $OPT $2 $3 $1.o $4 -o $1_$CONFSUF
+}
+
 compile_test()
 {
     echo "${COMMENT}Compiling $1"
-    compile_test_internal $1 "-fopencilk" "ktiming.o"
+    compile_c_test_internal $1 "-fopencilk" "ktiming.o"
 }
 
 compile_cilkscale_test()
 {
     echo "${COMMENT}Compiling $1 with cilkscale"
-    compile_test_internal $1 "-fopencilk -fcilktool=cilkscale" "ktiming.o"
+    compile_c_test_internal $1 "-fopencilk -fcilktool=cilkscale" "ktiming.o"
 }
 
 compile_cilkscale_test_fft()
 {
     echo "${COMMENT}Compiling $1 with cilkscale"
-    compile_test_internal $1 "-fopencilk -fcilktool=cilkscale" "ktiming.o getoptions.o" "-lm"
+    compile_c_test_internal $1 "-fopencilk -fcilktool=cilkscale" "ktiming.o getoptions.o" "-lm"
+}
+
+compile_cilkscale_test_apsp()
+{
+    echo "${COMMENT}Compiling $1 with cilkscale"
+    compile_cxx_test_internal $1 "-fopencilk -fcilktool=cilkscale" "ktiming.o" # "-lm"
 }
 
 compile_with_make()
@@ -200,6 +219,7 @@ compile()
     compile_cilkscale_test cilkscale_fib
     compile_cilkscale_test cilkscale_intsum
     compile_cilkscale_test_fft fft
+    compile_cilkscale_test_apsp apsp-matteo
     
     compile_with_make bfs pbfs
     compile_with_make BlackScholes BlackScholes
@@ -228,6 +248,7 @@ clean_exe()
     rm -rf cilkscale_fib_*
     rm -rf cilkscale_intsum_*
     rm -rf fft_*
+    rm -rf apsp-matteo_*
     
     rm -rf bfs_*
     rm -rf BlackScholes_*
@@ -309,6 +330,15 @@ test_fft()
     fi
 }
 
+test_apsp()
+{
+    run_test "apsp" cilkscale_parse apsp-matteo
+    if [ ! $PROFILE -eq 0 ]
+    then
+        profile_test "apsp" apsp-matteo
+    fi
+}
+
 test_BlackScholes()
 {
     run_test "BlackScholes" cilkscale_parse BlackScholes # No arguments
@@ -347,6 +377,7 @@ run_tests()
     test_cilkscale_fib
     test_cilkscale_intsum
     test_fft
+    test_apsp
     
     test_bfs
     test_BlackScholes
@@ -371,6 +402,8 @@ build_and_test 0 1 0
 #build_and_test 1 0 1
 #build_and_test 1 1 1
 clean_exe
+echo "$SECTION Testing complete! $SECTION"
+date
 
 #Old funcs
 
