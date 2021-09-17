@@ -117,7 +117,7 @@ profile_test()
 
 config()
 {
-    echo "$SECTION Runing test | SPA: $1; Inline: $2; Peer: $3 $SECTION"
+    echo "$SECTION Running test | SPA: $1; Inline: $2; Peer: $3 $SECTION"
     date
     CONF=$1"$SEP"$2"$SEP"$3
     CONFSUF=$1$2$3
