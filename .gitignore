@@ -15,8 +15,12 @@
 *.o
 *.s
 *.ll
+
 *.bin
 *.txt
 *.csv
 *.bmp
 *.valsig
+*.tar.bz2
+*.dat
+*.pl
