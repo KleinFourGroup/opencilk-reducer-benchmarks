@@ -48,7 +48,7 @@ def gettabular(cols):
     start = "@{\\extracolsep{\\fill}}"
     # sep = "@{{\\hspace*{{{}em}}}}".format(0.5)
     sep = ""
-    return "{}|{}|D{{.}}{{.}}{{2.1}}l|".format(start, sep.join(['c'] * len(cols)))
+    return "{}|{}|D{{.}}{{.}}{{2.3}}l|".format(start, sep.join(['c'] * len(cols)))
 
 def getheader(cols, hasTime, name=None):
     head = ["\\textit{{{}}}".format(i) for i in columns]
@@ -75,7 +75,7 @@ def rule(val, maxv):
 def getperf(row, maxv):
     if isinstance(row[-1], str):
         return ["\\multicolumn{{2}}{{c|}}{{{}}}".format("???")]
-    return ["{:.1f}".format(row[-2]), rule(row[-1], maxv)]
+    return ["{:.3f}".format(row[-2]), rule(row[-1], maxv)]
 
 def getrow(row, maxv):
     r = []
@@ -107,7 +107,8 @@ def mergetable(raw_data):
     for test in raw_data:
         maxtime = getmax(raw_data[test])
         addspeedup(raw_data[test], maxtime, True)
-    ret = next(iter(raw_data.values())).copy()
+    template = next(iter(raw_data.values()))
+    ret = [row.copy() for row in template]
     for i in range(len(ret)):
         vals = [raw_data[test][i][-1] for test in raw_data]
         ret[i][-2] = geometric_mean(vals)
@@ -122,11 +123,13 @@ for data in raw_data:
 parse_file()
 data = mergetable(raw_data)
 maxv = getmax(data)
+
 print("\\begin{{tabular*}}{{\\linewidth}}[t]{{{}}}".format(gettabular(columns)))
 print(getheader(columns, False))
 for row in data:
     print(getrow(row, maxv))
 print("\\hline\n\\end{tabular*}\n")
+
 for test in raw_data:
     tdata = sorttable(raw_data[test])
     maxv = getmax(tdata)
