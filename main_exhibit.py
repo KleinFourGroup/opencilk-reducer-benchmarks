@@ -8,6 +8,8 @@ columns = ("Hypermap", "Bitcode", "Peer")
 
 rwidth = 0.75
 
+# I/O
+
 def parse_file():
     fin = open("perf.csv")
     data_csv = csv.reader(fin, delimiter=";")
@@ -22,45 +24,18 @@ def parse_file():
                     float(row[4])]
             raw_data[test].append(prow)
 
+# Utils
+
 def getmax(data):
     vals = [i[-1] for i in data if not isinstance(i[-1], str)]
     return max(vals)
-
-def addspeedup(data, maxv, overwrite=False):
-    for row in data:
-        if not isinstance(row[-1], str):
-            ratio = maxv / row[-1]
-            if overwrite:
-                row[-1] = ratio
-            row.append(ratio)
-        else:
-            if overwrite:
-                row[-1] = "???"
-            row[-1] = row.append("???")
 
 def getkey(row):
     if isinstance(row[-1], str):
         return 0
     return row[-1]
 
-def gettabular(cols):
-    # start = "@{}"
-    start = "@{\\extracolsep{\\fill}}"
-    # sep = "@{{\\hspace*{{{}em}}}}".format(0.5)
-    sep = ""
-    return "{}|{}|D{{.}}{{.}}{{2.3}}l|".format(start, sep.join(['c'] * len(cols)))
-
-def getheader(cols, hasTime, name=None):
-    head = ["\\textit{{{}}}".format(i) for i in columns]
-    if hasTime:
-        head.append("\\multicolumn{{1}}{{c}}{{\\textit{{{}}}}}".format("Time"))
-        head.append("\\multicolumn{{1}}{{c|}}{{\\textit{{{}}}}}".format("Speedup"))
-    else:
-        head.append("\\multicolumn{{2}}{{c|}}{{\\textit{{{}}}}}".format("Speedup"))
-    if name == None:
-        return "\\hline\n{}\\\\\\hline".format(" & ".join(head))
-    title = "\\multicolumn{{{}}}{{c}}{{\\textsc{{{}}}}}".format(len(columns) + 2, name)
-    return "\\hline\n{}\\\\\\hline\n{}\\\\\\hline".format(title, " & ".join(head))
+# TeX Utils
 
 def checkmark(val):
     if val:
@@ -71,6 +46,28 @@ def rule(val, maxv):
     assert(val <= maxv)
     width = rwidth * (val / maxv)
     return "\\textcolor{{{0}}}{{\\rule{{{1:.3f}in}}{{6pt}}}}".format("red", width)
+
+def columnformat(ncols):
+    # start = "@{}"
+    start = "@{\\extracolsep{\\fill}}"
+    # sep = "@{{\\hspace*{{{}em}}}}".format(0.5)
+    sep = ""
+    return "{}|{}|D{{.}}{{.}}{{2.3}}l|".format(start, sep.join(['c'] * ncols))
+
+def tablebegin():
+    return "\\begin{{tabular*}}{{\\linewidth}}[t]{{{}}}".format(columnformat(len(columns)))
+
+def tableheader(hasTime, name=None):
+    head = ["\\textit{{{}}}".format(i) for i in columns]
+    if hasTime:
+        head.append("\\multicolumn{{1}}{{c}}{{\\textit{{{}}}}}".format("Time"))
+        head.append("\\multicolumn{{1}}{{c|}}{{\\textit{{{}}}}}".format("Speedup"))
+    else:
+        head.append("\\multicolumn{{2}}{{c|}}{{\\textit{{{}}}}}".format("Speedup"))
+    if name == None:
+        return "\\hline\n{}\\\\\\hline".format(" & ".join(head))
+    title = "\\multicolumn{{{}}}{{c}}{{\\textsc{{{}}}}}".format(len(columns) + 2, name)
+    return "\\hline\n{}\\\\\\hline\n{}\\\\\\hline".format(title, " & ".join(head))
 
 def getperf(row, maxv):
     if isinstance(row[-1], str):
@@ -84,29 +81,49 @@ def getrow(row, maxv):
     r.extend(getperf(row, maxv))
     return " & ".join(r) + "\\\\"
 
+# Table prep
+
+def addspeedup(data, overwrite=False):
+    maxv = getmax(data)
+    for row in data:
+        if not isinstance(row[-1], str):
+            ratio = maxv / row[-1]
+            if overwrite:
+                row[-1] = ratio
+            row.append(ratio)
+        else:
+            if overwrite:
+                row[-1] = "???"
+            row[-1] = row.append("???")
+
 def sorttable(raw_data):
     data = sorted(raw_data, key=getkey, reverse=False)
     return data
 
 def preptable(raw_data, overwrite):
-    maxtime = getmax(data)
-    addspeedup(data, maxtime, overwrite)
+    addspeedup(data, overwrite)
     raw_data = sorted(raw_data, key=getkey, reverse=True)
     return raw_data
     
-def printtable(raw_data, overwrite):
-    raw_data = preptable(raw_data, overwrite)
-    maxv = getmax(raw_data)
-    print("\\begin{{tabular*}}{{\\linewidth}}[t]{{{}}}".format(gettabular(columns)))
-    print(getheader(columns, not overwrite))
-    for row in raw_data:
+def printtable(perftable, hasTime):
+    maxv = getmax(perftable)
+    print(tablebegin())
+    print(tableheader(hasTime))
+    for row in perftable:
         print(getrow(row, maxv))
     print("\\hline\n\\end{tabular*}")
 
+def optdata(raw_data):
+    opt = []
+    for test in raw_data:
+        noopt = filter(lambda row: (not row[0]) and (not row[1]) and (not row[2]), raw_data[test])
+        allopt = filter(lambda row: row[0] and row[1] and row[2], raw_data[test])
+        opt.append([test, next(noopt)[-1] / next(allopt)[-1]])
+    return opt
+
 def mergetable(raw_data):
     for test in raw_data:
-        maxtime = getmax(raw_data[test])
-        addspeedup(raw_data[test], maxtime, True)
+        addspeedup(raw_data[test], True)
     template = next(iter(raw_data.values()))
     ret = [row.copy() for row in template]
     for i in range(len(ret)):
@@ -121,20 +138,25 @@ for data in raw_data:
    """
 
 parse_file()
+opt = optdata(raw_data)
 data = mergetable(raw_data)
 maxv = getmax(data)
 
-print("\\begin{{tabular*}}{{\\linewidth}}[t]{{{}}}".format(gettabular(columns)))
-print(getheader(columns, False))
-for row in data:
-    print(getrow(row, maxv))
-print("\\hline\n\\end{tabular*}\n")
+#print(tablebegin())
+#print(tableheader(False))
+#for row in data:
+#    print(getrow(row, maxv))
+#print("\\hline\n\\end{tabular*}\n")
+printtable(data, False)
 
 for test in raw_data:
     tdata = sorttable(raw_data[test])
     maxv = getmax(tdata)
-    print("\\begin{{tabular*}}{{\\linewidth}}[t]{{{}}}".format(gettabular(columns)))
-    print(getheader(columns, False, test))
+    print(tablebegin())
+    print(tableheader(False, test))
     for row in tdata:
         print(getrow(row, maxv))
     print("\\hline\n\\end{tabular*}\n")
+
+for row in opt:
+    print("{} {:.3f}".format(row[0], row[-1]))
