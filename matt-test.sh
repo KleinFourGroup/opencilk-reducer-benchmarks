@@ -18,7 +18,7 @@ NWORKERS=1
 # Default: 1
 STARTNWORKERS=1
 # Default: 8
-STOPNWORKERS=1
+STOPNWORKERS=3
 # Default: 0
 FULLTEST=0
 
@@ -37,7 +37,7 @@ CSCALE_FIB=$(($FIB-5))
 # Default: *10
 CSCALE_INTSUM=$(($INTSUM*10))
 # Default: -n 20000000
-CSCALE_FFT=(-n 20000000)
+CSCALE_FFT=(-n 10000000 -c)
 
 # Overhead codes
 SG=0
@@ -381,7 +381,7 @@ run_tests()
     # Uses an atomic
     # over_worker_range test_cilkscale_intsum
     over_worker_range test_fft
-    over_worker_range test_apsp
+    # over_worker_range test_apsp
     
     over_worker_range test_bfs
     over_worker_range test_BlackScholes

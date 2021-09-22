@@ -3256,11 +3256,12 @@ void test_fft(int n, COMPLEX * in, COMPLEX * out) {
 
 
 #define max 800
-void test_correctness(void) {
+int test_correctness(void) {
 
   COMPLEX *in1, *in2, *out1, *out2;
   int n;
   int i;
+  int res = max - 1;
   double error, a;
 
   in1 = (COMPLEX *) malloc(max * sizeof(COMPLEX));
@@ -3296,6 +3297,7 @@ void test_correctness(void) {
         error = a;
     }
     if(error > 1e-3) {
+      res--;
       printf("n=%d error=%e\n", n, error);
       printf("ct:\n");
       for(i = 0; i < n; ++i)
@@ -3308,36 +3310,44 @@ void test_correctness(void) {
       printf("n=%d ok\n", n);
   }
 
-  return;
+  printf("%d/%d correct!\n", res, max - 1);
+  return res;
 }
 
 void test_speed(long size) {
 
   COMPLEX *in, *out;
   int i = 0;
+  int n = 0;
+
+  clockmark_t begin, end;
+  uint64_t running_time[TIMING_COUNT];
 
   in = (COMPLEX *) malloc(size * sizeof(COMPLEX));
   out = (COMPLEX *) malloc(size * sizeof(COMPLEX));
 
-  /* generate random input */
-  for(i = 0; i < size; ++i) {
-    c_re(in[i]) = 1.0;
-    c_im(in[i]) = 1.0;
-  }
+  for(n = 0; n < TIMING_COUNT; ++n) {
+    /* generate random input */
+    for(i = 0; i < size; ++i) {
+      c_re(in[i]) = 1.0;
+      c_im(in[i]) = 1.0;
+    }
 
-  struct timeval t1, t2;
-  clockmark_t begin, end;
-  gettimeofday(&t1,0);
-  begin = ktiming_getmark();
-  cilk_fft(size, in, out);
-  end = ktiming_getmark();
-  gettimeofday(&t2,0);
-  unsigned long long runtime_ms = (todval(&t2)-todval(&t1))/1000;
-  //printf("%f\n", runtime_ms/1000.0);
-  printf("%g\n", ktiming_diff_sec(&begin, &end));
+    // struct timeval t1, t2;
+    // gettimeofday(&t1,0);
+    begin = ktiming_getmark();
+    cilk_fft(size, in, out);
+    end = ktiming_getmark();
+    // gettimeofday(&t2,0);
+    // unsigned long long runtime_ms = (todval(&t2)-todval(&t1))/1000;
+    // printf("%f\n", runtime_ms/1000.0);
+    running_time[n] = ktiming_diff_nsec(&begin, &end);
+  }
 
   fprintf(stderr, "\ncilk example: fft\n");
   fprintf(stderr, "options:  number of elements   n = %ld\n\n", size);
+
+  print_runtime(running_time, TIMING_COUNT);
 
   free(in);
   free(out);
@@ -3395,11 +3405,11 @@ int main(int argc, char *argv[]) {
         break;
     }
   }
+  int res;
   if(correctness)
-    test_correctness();
-  else {
-    test_speed(size);
-  }
+    res = test_correctness();
+  test_speed(size);
 
-  return 0;
+
+  return res != max - 1;
 }
