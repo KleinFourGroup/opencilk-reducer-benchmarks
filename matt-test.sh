@@ -1,3 +1,4 @@
+#!/bin/bash
 CC=$HOME/opencilk/build/bin/clang
 CXX=$HOME/opencilk/build/bin/clang++
 SENT=$HOME/opencilk/opencilk-project/cheetah/include/cilk/sentinel.h
@@ -10,6 +11,16 @@ REPS=5
 LIBPROF=/usr/lib/x86_64-linux-gnu/libprofiler.so.0
 # Default: 1
 PROFILE=0
+# Default: 0
+PROFILEPARALLEL=0
+# Default: 1, but it's truly irrelevant
+NWORKERS=1
+# Default: 1
+STARTNWORKERS=1
+# Default: 8
+STOPNWORKERS=3
+# Default: 0
+FULLTEST=0
 
 # Default: *100
 INTSUM=$((25000000*1))
@@ -27,10 +38,6 @@ CSCALE_FIB=$(($FIB-5))
 CSCALE_INTSUM=$(($INTSUM*10))
 # Default: -n 20000000
 CSCALE_FFT=(-n 20000000)
-# Default: 1
-NWORKERS=1
-# Default: 0
-FULLTEST=0
 
 # Overhead codes
 SG=0
@@ -59,9 +66,17 @@ run_exe()
 profile_exe()
 {
     # echo $@
-    LD_PRELOAD=$LIBPROF CPUPROFILE=$1_$CONFSUF.prof CILK_NWORKERS=$NWORKERS ./$1_$CONFSUF ${@:2} &> /dev/null
-    google-pprof --text ./$1_$CONFSUF ./$1_$CONFSUF.prof &> logs/$1_${CONFSUF}_profile.txt
-    rm -f $1_$CONFSUF.prof
+    if [ ! $PROFILEPARALLEL -eq 0 ]
+    then
+        PFILE=$1_$NWORKERS$CONFSUF.prof
+        PLOG=$1_${NWORKERS}${CONFSUF}_profile.txt
+    else
+        PFILE=$1_$CONFSUF.prof
+        PLOG=$1_${CONFSUF}_profile.txt
+    fi
+    echo "LD_PRELOAD=$LIBPROF CPUPROFILE=$PFILE CILK_NWORKERS=$NWORKERS ./$1_$CONFSUF ${@:2} &> /dev/null"
+    echo "google-pprof --text ./$1_$CONFSUF ./$PFILE &> logs/$PLOG"
+    echo "rm -f $PFILE"
 }
 
 default_parse()
@@ -90,10 +105,10 @@ run_test()
         printf "${COMMENT}${DATE}: $1 compilation failed!\n"
         return 1
     else
-        printf "${COMMENT}${DATE}: Running test $1 with inputs '%s'... " "${*:4}"
+        printf "${COMMENT}${DATE}: Running test $1 on $NWORKERS worker(s) with inputs '%s'... " "${*:4}"
     fi
     ERR=0
-    printf "$1$HEADSEP$CONF$SEP" >> $PERF
+    printf "$1$HEADSEP$NWORKERS$SEP$CONF$SEP" >> $PERF
     PARSED=$($2 $3 ${@:4})
     ERR=$(($ERR+$?))
     printf "$PARSED$SEP$ERR" >> $PERF
@@ -101,18 +116,30 @@ run_test()
     printf "%s\n" "$ENDROW" >> $PERF
 }
 
+over_worker_range()
+{
+    for ((NWORKERS=$STARTNWORKERS;NWORKERS<=$STOPNWORKERS;NWORKERS++))
+    do
+        $@
+    done
+    NWORKERS=$STARTNWORKERS
+}
+
 profile_test()
 {
     # echo $@
-    DATE=$(date "+%T")
-    if [ ! -e $2_$CONFSUF ]
+    if [[ (! $PROFILE -eq 0) && ( (! $PROFILEPARALLEL -eq 0) || $NWORKERS -eq 1 ) ]]
     then
-        printf "${COMMENT}${DATE}: $1 compilation failed!\n"
-        return 1
-    else
-        printf "${COMMENT}${DATE}: Profiling test $1 with inputs '%s'...\n" "${*:3}"
+        DATE=$(date "+%T")
+        if [ ! -e $2_$CONFSUF ]
+        then
+            printf "${COMMENT}${DATE}: $1 compilation failed!\n"
+            return 1
+        else
+            printf "${COMMENT}${DATE}: Profiling test $1 on $NWORKERS worker(s) with inputs '%s'...\n" "${*:3}"
+        fi
+        profile_exe $2 ${@:3}
     fi
-    profile_exe $2 ${@:3}
 }
 
 config()
@@ -184,16 +211,16 @@ compile_cilkscale_test()
     compile_c_test_internal $1 "-fopencilk -fcilktool=cilkscale" "ktiming.o"
 }
 
+compile_cilkscale_test_cxx()
+{
+    echo "${COMMENT}Compiling $1 with cilkscale"
+    compile_cxx_test_internal $1 "-fopencilk -fcilktool=cilkscale" "ktiming.o" # "-lm"
+}
+
 compile_cilkscale_test_fft()
 {
     echo "${COMMENT}Compiling $1 with cilkscale"
     compile_c_test_internal $1 "-fopencilk -fcilktool=cilkscale" "ktiming.o getoptions.o" "-lm"
-}
-
-compile_cilkscale_test_apsp()
-{
-    echo "${COMMENT}Compiling $1 with cilkscale"
-    compile_cxx_test_internal $1 "-fopencilk -fcilktool=cilkscale" "ktiming.o" # "-lm"
 }
 
 compile_with_make()
@@ -219,7 +246,7 @@ compile()
     compile_cilkscale_test cilkscale_fib
     compile_cilkscale_test cilkscale_intsum
     compile_cilkscale_test_fft fft
-    compile_cilkscale_test_apsp apsp-matteo
+    compile_cilkscale_test_cxx apsp-matteo
     
     compile_with_make bfs pbfs
     compile_with_make BlackScholes BlackScholes
@@ -261,100 +288,67 @@ clean_exe()
 test_intsum()
 {
     run_test "intsum" default_parse intsum_check $INTSUM $CR
-    if [ ! $PROFILE -eq 0 ]
-    then
-        profile_test "intsum" intsum_check $INTSUM $CR
-    fi
+    profile_test "intsum" intsum_check $INTSUM $CR
 }
 
 test_fib()
 {
     run_test "fib" default_parse fib $FIB $CR
-    if [ ! $PROFILE -eq 0 ]
-    then
-        profile_test "fib" fib $FIB $CR
-        fi
+    profile_test "fib" fib $FIB $CR
 }
 
 test_histogram()
 {
     run_test "histogram" default_parse histogram ${HIST[@]} $CR
-    if [ ! $PROFILE -eq 0 ]
-    then
-        profile_test "histogram" histogram ${HIST[@]} $CR
-    fi
+    profile_test "histogram" histogram ${HIST[@]} $CR
 }
 
 test_intlist()
 {
     run_test "intlist" default_parse intlist $INTLIST $CR
-    if [ ! $PROFILE -eq 0 ]
-    then
-        profile_test "intlist" intlist $INTLIST $CR
-    fi
+    profile_test "intlist" intlist $INTLIST $CR
 }
 
 test_bfs()
 {
     run_test "PBFS" default_parse bfs ${PBFS[@]}
-    if [ ! $PROFILE -eq 0 ]
-    then
-        profile_test "PBFS" bfs ${PBFS[@]}
-    fi
+    profile_test "PBFS" bfs ${PBFS[@]}
 }
 
 test_cilkscale_fib()
 {
     run_test "cilkscale (fib)" cilkscale_parse cilkscale_fib $CSCALE_FIB
-    if [ ! $PROFILE -eq 0 ]
-    then
-        profile_test "cilkscale (fib)" cilkscale_fib $CSCALE_FIB
-    fi
+    profile_test "cilkscale (fib)" cilkscale_fib $CSCALE_FIB
 }
 
 test_cilkscale_intsum()
 {
     run_test "cilkscale (intsum)" cilkscale_parse cilkscale_intsum $CSCALE_INTSUM
-    if [ ! $PROFILE -eq 0 ]
-    then
-        profile_test "cilkscale (intsum)" cilkscale_intsum $CSCALE_INTSUM
-    fi
+    profile_test "cilkscale (intsum)" cilkscale_intsum $CSCALE_INTSUM
 }
 
 test_fft()
 {
     run_test "fft" cilkscale_parse fft ${CSCALE_FFT[@]}
-    if [ ! $PROFILE -eq 0 ]
-    then
-        profile_test "fft" fft ${CSCALE_FFT[@]}
-    fi
+    profile_test "fft" fft ${CSCALE_FFT[@]}
 }
 
 test_apsp()
 {
     run_test "apsp" cilkscale_parse apsp-matteo
-    if [ ! $PROFILE -eq 0 ]
-    then
-        profile_test "apsp" apsp-matteo
-    fi
+    profile_test "apsp" apsp-matteo
 }
 
 test_BlackScholes()
 {
     run_test "BlackScholes" cilkscale_parse BlackScholes # No arguments
-    if [ ! $PROFILE -eq 0 ]
-    then
-        profile_test "BlackScholes" BlackScholes # No arguments
-    fi
+    profile_test "BlackScholes" BlackScholes # No arguments
 }
 
 test_Mandelbrot()
 {
     run_test "Mandelbrot" cilkscale_parse Mandelbrot # No arguments
-    if [ ! $PROFILE -eq 0 ]
-    then
-        profile_test "Mandelbrot" Mandelbrot # No arguments
-    fi
+    profile_test "Mandelbrot" Mandelbrot # No arguments
 }
 
 make_runtime()
@@ -369,19 +363,20 @@ run_tests()
     touch $PERF
     echo "${COMMENT}Performance data in $PERF"
 
-    test_intsum
-    test_fib
-    test_histogram
-    test_intlist
+    over_worker_range test_intsum
+    over_worker_range test_fib
+    over_worker_range test_histogram
+    over_worker_range test_intlist
 
-    test_cilkscale_fib
-    test_cilkscale_intsum
-    test_fft
-    test_apsp
+    over_worker_range test_cilkscale_fib
+    # Uses an atomic
+    # over_worker_range test_cilkscale_intsum
+    over_worker_range test_fft
+    # over_worker_range test_apsp
     
-    test_bfs
-    test_BlackScholes
-    test_Mandelbrot
+    over_worker_range test_bfs
+    over_worker_range test_BlackScholes
+    over_worker_range test_Mandelbrot
 }
 
 build_and_test()
@@ -391,19 +386,24 @@ build_and_test()
     run_tests
 }
 
-clean_all
-mkdir -p logs
-#build_and_test 0 0 0
-build_and_test 0 1 0
-#build_and_test 0 0 1
-#build_and_test 0 1 1
-#build_and_test 1 0 0
-#build_and_test 1 1 0
-#build_and_test 1 0 1
-#build_and_test 1 1 1
-clean_exe
-echo "$SECTION Testing complete! $SECTION"
-date
+full_stress_test()
+{
+    clean_all
+    mkdir -p logs
+    #build_and_test 0 0 0
+    #build_and_test 0 1 0
+    #build_and_test 0 0 1
+    #build_and_test 0 1 1
+    build_and_test 1 0 0
+    #build_and_test 1 1 0
+    #build_and_test 1 0 1
+    #build_and_test 1 1 1
+    clean_exe
+    echo "$SECTION Testing complete! $SECTION"
+    date
+}
+
+full_stress_test
 
 #Old funcs
 

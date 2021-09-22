@@ -35,7 +35,8 @@ uint64_t intsum_serial(uint64_t * restrict arr, uint64_t num, uint64_t size) {
 uint64_t intsum_cilk(uint64_t * restrict arr, uint64_t num, uint64_t size) {
     uint64_t sum = 0;
     cilk_for (uint64_t i = 0; i < num; i++) {
-        sum += arr[i % size];
+                __atomic_fetch_add(&sum, arr[i % size], __ATOMIC_SEQ_CST);
+                //sum += arr[i % size];
     }
 
     return sum;
