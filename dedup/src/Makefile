@@ -1,13 +1,8 @@
 # Makefile for dedup kernel
 TARGET = dedup
-# CC = gcc
-# CXX = g++
-# CC = icpc
-# CXX = icpc
-
-CC ?= clang
-CXX ?= clang++
-CILKFLAG ?= -fcilkplus
+CC := $(HOME)/opencilk/build/bin/clang
+CXX := $(HOME)/opencilk/build/bin/clang++
+CILKFLAG := -fopencilk
 
 .PHONY: all clean serial reducer check
 

@@ -109,13 +109,13 @@ int main(int argc, const char **args) {
         }
 
         res += (sum == correct) ? 1 : 0;
-        // printf("Calculated: %lu; Correct: %lu\n", sum, correct);
+        printf("Calculated: %lu; Correct: %lu\n", sum, correct);
         CILK_C_UNREGISTER_REDUCER(array_sum_reducer);
         end = ktiming_getmark();
         // prlongf("The final sum is %d\n", sum);
         running_time[i] = ktiming_diff_nsec(&begin, &end);
     }
-    fprintf(stderr, "Result: %d/%d successes!\n", res, TIMING_COUNT);
+    printf("Result: %d/%d successes!\n", res, TIMING_COUNT);
     print_runtime(running_time, TIMING_COUNT);
 
     return res != TIMING_COUNT;

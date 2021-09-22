@@ -150,7 +150,7 @@ int main(int argc, char *argv[])
 	  //printf("%d OK\n", N);
      }
 	end = ktiming_getmark();
-	printf("%g,", ktiming_diff_sec(&begin, &end));
+	printf("%g\n,", ktiming_diff_sec(&begin, &end));
 
      return res != 200;
 }

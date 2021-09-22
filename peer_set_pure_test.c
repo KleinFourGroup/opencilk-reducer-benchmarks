@@ -153,7 +153,7 @@ int tmain(int argc, const char **args) {
     }
     cilk_sync;
 
-    fprintf(stderr, "Result: %d/%d successes!\n", res, TIMING_COUNT);
+    printf("Result: %d/%d successes!\n", res, TIMING_COUNT);
     print_runtime(running_time, TIMING_COUNT);
 
     return res != TIMING_COUNT;

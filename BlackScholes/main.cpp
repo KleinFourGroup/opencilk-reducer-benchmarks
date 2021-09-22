@@ -77,7 +77,7 @@ void print_average(float *CallResult, float *PutResult, double time) {
 		sum_call += CallResult[i];
 		sum_put += PutResult[i];
 	}
-	printf("%f,", time);
+	printf("%f\n", time);
 }
 
 // Returns uniformly distributed random float between [low, high]

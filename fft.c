@@ -3334,7 +3334,7 @@ void test_speed(long size) {
   gettimeofday(&t2,0);
   unsigned long long runtime_ms = (todval(&t2)-todval(&t1))/1000;
   //printf("%f\n", runtime_ms/1000.0);
-  printf("%g,", ktiming_diff_sec(&begin, &end));
+  printf("%g\n", ktiming_diff_sec(&begin, &end));
 
   fprintf(stderr, "\ncilk example: fft\n");
   fprintf(stderr, "options:  number of elements   n = %ld\n\n", size);

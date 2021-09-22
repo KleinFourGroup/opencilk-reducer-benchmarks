@@ -74,15 +74,15 @@ static void print_runtime_helper(uint64_t *nsec_elapsed, int size,
         min = (nsec_elapsed[i] < min) ? nsec_elapsed[i] : min;
         total += nsec_elapsed[i];
         if (!summary) {
-            fprintf(stderr, "Running time %d: %gs\n", (i + 1),
+            printf("Running time %d: %gs\n", (i + 1),
                     NSEC_TO_SEC(nsec_elapsed[i]));
         }
     }
     ave = total / size;
 
     //printf("Running time average: %g s\n", NSEC_TO_SEC(ave));
-    //printf("%g", NSEC_TO_SEC(ave));
-    printf("%g", NSEC_TO_SEC(min));
+    //printf("%g\n", NSEC_TO_SEC(ave));
+    printf("%g\n", NSEC_TO_SEC(min));
 }
 
 void print_runtime(uint64_t *tm_elapsed, int size) {

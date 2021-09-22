@@ -61,7 +61,7 @@ int main(int argc, char* argv[]) {
 		timer.start();
 		output = cilk_mandelbrot(x0, y0, x1, y1, width, height, max_depth);
 		timer.stop();
-		printf("%f,", timer.get_time());
+		printf("%f\n", timer.get_time());
 		//printf("Saving image...\n");
 		image.from_gray(output);
 		image.save("mandelbrot_cilk.bmp");

@@ -171,7 +171,7 @@ int main(int argc, const char **args) {
         end = ktiming_getmark();
         running_time[i] = ktiming_diff_nsec(&begin, &end);
     }
-    fprintf(stderr, "Result: %d/%d successes!\n", res, TIMING_COUNT);
+    printf("Result: %d/%d successes!\n", res, TIMING_COUNT);
     print_runtime(running_time, TIMING_COUNT);
 
     return res != TIMING_COUNT;

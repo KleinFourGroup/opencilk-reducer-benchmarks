@@ -130,13 +130,13 @@ int main(int argc, const char **args) {
         }
 
         res += (ret == correct) ? 1 : 0;
-        //printf("Calculated: %lu; Correct: %lu\n", ret, correct);
         CILK_C_UNREGISTER_REDUCER(fib_result_reducer);
+        printf("Calculated: %lu; Correct: %lu\n", ret, correct);
         end = ktiming_getmark();
         // prlongf("The final sum is %d\n", sum);
         running_time[i] = ktiming_diff_nsec(&begin, &end);
     }
-    fprintf(stderr, "Result: %d/%d successes!\n", res, TIMING_COUNT);
+    printf("Result: %d/%d successes!\n", res, TIMING_COUNT);
     print_runtime(running_time, TIMING_COUNT);
 
     return res != TIMING_COUNT;

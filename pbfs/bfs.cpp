@@ -167,7 +167,7 @@ main (int argc, char** argv)
   }
   */
   }
-  fprintf(stderr, "Result: %d/%d successes!\n", res, TIMING_COUNT);
+  printf("Result: %d/%d successes!\n", res, TIMING_COUNT);
   print_runtime(running_time, TIMING_COUNT);
 
 

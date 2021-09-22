@@ -18,7 +18,7 @@ NWORKERS=1
 # Default: 1
 STARTNWORKERS=1
 # Default: 8
-STOPNWORKERS=3
+STOPNWORKERS=1
 # Default: 0
 FULLTEST=0
 
@@ -83,7 +83,8 @@ default_parse()
 {
     RES="$(run_exe $@)"
     CODE=$?
-    printf "$RES"
+    RET=$(echo "$RES" | tail -1)
+    printf "$RET"
     return $CODE
 }
 
@@ -91,8 +92,8 @@ cilkscale_parse()
 {
     RES="$(run_exe $@)"
     CODE=$?
-    ELTS=$(echo $RES | cut -d',' -f1)
-    printf "$ELTS"
+    RET=$(echo "$RES" | tail -3 | head -1)
+    printf "$RET"
     return $CODE
 }
 
@@ -112,7 +113,7 @@ run_test()
     PARSED=$($2 $3 ${@:4})
     ERR=$(($ERR+$?))
     printf "$PARSED$SEP$ERR" >> $PERF
-    printf "runtime: $PARSED; return code: $ERR\n"
+    printf "runtime: $PARSED; errors: $ERR\n"
     printf "%s\n" "$ENDROW" >> $PERF
 }
 
@@ -258,6 +259,11 @@ compile()
     $CC $OPT -fopencilk ktiming.o peer_set_pure_test.o -o peer_set_pure_test_$CONFSUF
 }
 
+clean_make()
+{
+    cd $1; make -s clean; cd ..
+}
+
 clean_all()
 {
     rm -rf build_*.txt perf.csv
@@ -278,8 +284,11 @@ clean_exe()
     rm -rf apsp-matteo_*
     
     rm -rf bfs_*
+    clean_make pbfs
     rm -rf BlackScholes_*
+    clean_make BlackScholes
     rm -rf Mandelbrot_*
+    clean_make Mandelbrot
 
     rm -rf peer_set_pure_test_*
     rm -rf *.o *.s *.ll
@@ -372,7 +381,7 @@ run_tests()
     # Uses an atomic
     # over_worker_range test_cilkscale_intsum
     over_worker_range test_fft
-    # over_worker_range test_apsp
+    over_worker_range test_apsp
     
     over_worker_range test_bfs
     over_worker_range test_BlackScholes
