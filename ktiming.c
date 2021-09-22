@@ -67,9 +67,11 @@ static void print_runtime_helper(uint64_t *nsec_elapsed, int size,
 
     int i;
     uint64_t total = 0;
+    uint64_t min = (uint64_t)(-1); // Hurray for overflow
     double ave, std_dev = 0, dev_sq_sum = 0;
 
     for (i = 0; i < size; i++) {
+        min = (nsec_elapsed[i] < min) ? nsec_elapsed[i] : min;
         total += nsec_elapsed[i];
         if (!summary) {
             fprintf(stderr, "Running time %d: %gs\n", (i + 1),
@@ -79,7 +81,8 @@ static void print_runtime_helper(uint64_t *nsec_elapsed, int size,
     ave = total / size;
 
     //printf("Running time average: %g s\n", NSEC_TO_SEC(ave));
-    printf("%g", NSEC_TO_SEC(ave));
+    //printf("%g", NSEC_TO_SEC(ave));
+    printf("%g", NSEC_TO_SEC(min));
 }
 
 void print_runtime(uint64_t *tm_elapsed, int size) {
