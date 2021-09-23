@@ -723,7 +723,8 @@ void Encode(config_t * _conf) {
     if(preload_time) {
         printf("Preloading time = %.4f seconds\n", preload_time*1.0e-9);
     }
-    printf("Processing time = %.4f seconds\n", process_time*1.0e-9);
+    // That should make the output useable
+    printf("%f\n", process_time*1.0e-9);
 
     /*
     cilkpub_report_time(stdout,

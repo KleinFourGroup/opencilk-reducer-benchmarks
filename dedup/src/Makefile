@@ -15,7 +15,7 @@ endif
 
 export UTIL_OBJ LIBS CFLAGS
 
-CFLAGS += -Wall -D_XOPEN_SOURCE=600 $(INCLUDES) -O3 -DNDEBUG -g 
+CFLAGS += -w -D_XOPEN_SOURCE=600 $(INCLUDES) -O3 -DNDEBUG -g 
 LIBS += -lm -lrt
 
 DEDUP_OBJ = decoder.o
@@ -36,7 +36,7 @@ CPPFLAGS := $(CFLAGS)
 CPPFLAGS += -std=c++0x $(EXTRA_CXXFLAGS) $(EXTRA_CFLAGS)
 CFLAGS += -std=gnu99 $(EXTRA_CFLAGS) # -pedantic
 
-$(warning "CPPFLAGS is $(CPPFLAGS),  CFLAGS is $(CFLAGS)")
+# $(warning "CPPFLAGS is $(CPPFLAGS),  CFLAGS is $(CFLAGS)")
 
 # Uncomment the following to enable bzip2 compression
 # Don't seem to have bzlib.h installed on the system

@@ -25,4 +25,5 @@
 *.valsig
 *.tar.bz2
 *.dat
+*.ddp
 *.pl

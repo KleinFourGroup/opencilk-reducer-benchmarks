@@ -39,6 +39,7 @@ CSCALE_INTSUM=$(($INTSUM*10))
 # Default: -n 20000000
 CSCALE_FFT=(-n 10000000 -c)
 
+
 # Overhead codes
 SG=0
 SR=1
@@ -232,6 +233,15 @@ compile_with_make()
     cp $2/$1 $1_$CONFSUF
 }
 
+compile_dedup()
+{
+    echo "${COMMENT}Compiling dedup with dedup/src/Makefile"
+    rm -rf dedup-reducer_$CONFSUF dedup-serial_$CONFSUF
+    cd dedup/src; make -s clean; make -s; cd ../..
+    cp dedup/src/dedup-reducer dedup-reducer_$CONFSUF
+    cp dedup/src/dedup-serial dedup-serial_$CONFSUF
+}
+
 compile()
 {
     echo "Compiling tests"
@@ -252,6 +262,7 @@ compile()
     compile_with_make bfs pbfs
     compile_with_make BlackScholes BlackScholes
     compile_with_make Mandelbrot Mandelbrot
+    compile_dedup
     
     rm -rf peer_set_pure_test_$CONFSUF
     $CC $OPT -g -c -DTIMING_COUNT=$REPS -fopencilk -fno-vectorize -o peer_set_pure_test.o peer_set_pure_test.c
@@ -262,13 +273,6 @@ compile()
 clean_make()
 {
     cd $1; make -s clean; cd ..
-}
-
-clean_all()
-{
-    rm -rf build_*.txt perf.csv
-    rm -rf  *.bmp *.valsig *.prof logs/
-    clean_exe
 }
 
 clean_exe()
@@ -289,9 +293,19 @@ clean_exe()
     clean_make BlackScholes
     rm -rf Mandelbrot_*
     clean_make Mandelbrot
+    rm -rf dedup-reducer_*
+    rm -rf dedup-serial_*
+    cd dedup/src; make -s clean; cd ../..
 
     rm -rf peer_set_pure_test_*
     rm -rf *.o *.s *.ll
+}
+
+clean_all()
+{
+    rm -rf build_*.txt perf.csv
+    rm -rf  *.bmp *.valsig *.prof *.dat *.ddp logs/
+    clean_exe
 }
 
 test_intsum()
