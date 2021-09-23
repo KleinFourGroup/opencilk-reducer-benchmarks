@@ -8,6 +8,8 @@
 !*/
 
 !Makefile
+!README
+!LICENSE
 
 ### Above combination will ignore all files without extension ###
 
