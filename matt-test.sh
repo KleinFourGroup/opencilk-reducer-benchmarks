@@ -38,7 +38,11 @@ CSCALE_FIB=$(($FIB-5))
 CSCALE_INTSUM=$(($INTSUM*10))
 # Default: -n 20000000
 CSCALE_FFT=(-n 10000000 -c)
-
+# Default: dedup/data/simlarge
+DEDUP_TEST=dedup/data/simsmall
+DEDUP_REDC=(-c -i $DEDUP_TEST/media.dat -o reducer.dat.ddp)
+DEDUP_SERC=(-c -i $DEDUP_TEST/media.dat -o serial.dat.ddp)
+DEDUP_REDU=(-u -i reducer.dat.ddp -o uncompressed.dat)
 
 # Overhead codes
 SG=0
@@ -118,13 +122,25 @@ run_test()
     printf "%s\n" "$ENDROW" >> $PERF
 }
 
-over_worker_range()
+run_test_custom_check()
 {
-    for ((NWORKERS=$STARTNWORKERS;NWORKERS<=$STOPNWORKERS;NWORKERS++))
-    do
-        $@
-    done
-    NWORKERS=$STARTNWORKERS
+    # echo $@
+    DATE=$(date "+%T")
+    if [ ! -e $4_$CONFSUF ]
+    then
+        printf "${COMMENT}${DATE}: $1 compilation failed!\n"
+        return 1
+    else
+        printf "${COMMENT}${DATE}: Running test $1 on $NWORKERS worker(s) with inputs '%s'... " "${*:5}"
+    fi
+    ERR=0
+    printf "$1$HEADSEP$NWORKERS$SEP$CONF$SEP" >> $PERF
+    PARSED=$($2 $4 ${@:5})
+    $3
+    ERR=$(($ERR+$?))
+    printf "$PARSED$SEP$ERR" >> $PERF
+    printf "runtime: $PARSED; errors: $ERR\n"
+    printf "%s\n" "$ENDROW" >> $PERF
 }
 
 profile_test()
@@ -142,6 +158,15 @@ profile_test()
         fi
         profile_exe $2 ${@:3}
     fi
+}
+
+over_worker_range()
+{
+    for ((NWORKERS=$STARTNWORKERS;NWORKERS<=$STOPNWORKERS;NWORKERS++))
+    do
+        $@
+    done
+    NWORKERS=$STARTNWORKERS
 }
 
 config()
@@ -374,6 +399,29 @@ test_Mandelbrot()
     profile_test "Mandelbrot" Mandelbrot # No arguments
 }
 
+check_dedup()
+{
+    # Prepare for spaghetti code
+    ERR=0
+    ./dedup-serial_$CONFSUF ${DEDUP_SERC[@]} &> /dev/null
+    diff reducer.dat.ddp serial.dat.ddp &> /dev/null
+    ERR=$(($ERR+$?))
+    run_exe dedup-reducer ${DEDUP_REDU[@]} &> /dev/null
+    diff uncompressed.dat $DEDUP_TEST/media.dat &> /dev/null
+    ERR=$(($ERR+$?))
+    if [[ ! $ERR -eq 0 ]]
+    then
+        ERR=1
+    fi
+    return $ERR
+}
+
+test_dedup()
+{
+    run_test_custom_check "dedup" default_parse check_dedup dedup-reducer ${DEDUP_REDC[@]}
+    profile_test "dedup" dedup-reducer ${DEDUP_REDC[@]}
+}
+
 make_runtime()
 {
     build # &> /dev/null
@@ -395,11 +443,13 @@ run_tests()
     # Uses an atomic
     # over_worker_range test_cilkscale_intsum
     over_worker_range test_fft
-    # over_worker_range test_apsp
+    over_worker_range test_apsp
     
     over_worker_range test_bfs
     over_worker_range test_BlackScholes
     over_worker_range test_Mandelbrot
+
+    over_worker_range test_dedup
 }
 
 build_and_test()
