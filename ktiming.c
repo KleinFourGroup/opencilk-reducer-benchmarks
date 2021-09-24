@@ -65,7 +65,7 @@ double ktiming_diff_sec(const clockmark_t *const start,
 void sort(uint64_t * arr, int n) {
     int i, j;
     uint64_t comp;
-    for (int i = 1; i < n; i++) {
+    for (i = 1; i < n; i++) {
         comp = arr[i];
         j = i - 1;
         
