@@ -62,27 +62,52 @@ double ktiming_diff_sec(const clockmark_t *const start,
     return NSEC_TO_SEC(ktiming_diff_nsec(start, end));
 }
 
+void sort(uint64_t * arr, int n) {
+    int i, j;
+    uint64_t comp;
+    for (int i = 1; i < n; i++) {
+        comp = arr[i];
+        j = i - 1;
+        
+        while (comp < arr[j] && j >= 0) {
+            arr[j + 1] = arr[j];
+            j--;
+        }
+        
+        arr[j + 1] = comp;
+    }
+}
+
 static void print_runtime_helper(uint64_t *nsec_elapsed, int size,
                                  int summary) {
 
     int i;
     uint64_t total = 0;
     uint64_t min = (uint64_t)(-1); // Hurray for overflow
+    uint64_t med;
     double ave, std_dev = 0, dev_sq_sum = 0;
 
     for (i = 0; i < size; i++) {
-        min = (nsec_elapsed[i] < min) ? nsec_elapsed[i] : min;
-        total += nsec_elapsed[i];
+        // min = (nsec_elapsed[i] < min) ? nsec_elapsed[i] : min;
+        // total += nsec_elapsed[i];
         if (!summary) {
             printf("Running time %d: %gs\n", (i + 1),
                     NSEC_TO_SEC(nsec_elapsed[i]));
         }
     }
-    ave = total / size;
+    // ave = total / size;
+    sort(nsec_elapsed, size);
+
+    if (size % 2 == 1) {
+        med = nsec_elapsed[size / 2];
+    } else {
+        med = (nsec_elapsed[(size - 1) / 2] + nsec_elapsed[size / 2]) / 2;
+    }
 
     //printf("Running time average: %g s\n", NSEC_TO_SEC(ave));
     //printf("%g\n", NSEC_TO_SEC(ave));
-    printf("%g\n", NSEC_TO_SEC(min));
+    //printf("%g\n", NSEC_TO_SEC(min));
+    printf("%g\n", NSEC_TO_SEC(med));
 }
 
 void print_runtime(uint64_t *tm_elapsed, int size) {
