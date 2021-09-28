@@ -37,7 +37,7 @@ void set_bins(int num) {
     }
 }
 
-inline void prepare() {
+static inline void prepare() {
     for (uint64_t i = 0; i < bins; i++) {
         CILK_C_REGISTER_REDUCER(histogram[i]);
         *(&REDUCER_VIEW(histogram[i])) = 0;
@@ -45,7 +45,7 @@ inline void prepare() {
     }
 }
 
-inline void cleanup() {
+static inline void cleanup() {
     for (uint64_t i = 0; i < bins; i++) {
         CILK_C_UNREGISTER_REDUCER(histogram[i]);
     }
@@ -97,7 +97,7 @@ void test_reducer_atomic(uint64_t * restrict arr, uint64_t num, uint64_t size) {
     }
 }
 
-inline uint64_t check_bins(uint64_t * correct, int check) {
+static inline uint64_t check_bins(uint64_t * correct, int check) {
     switch(check) {
     case 0:
         for (uint64_t i = 0; i < bins; i++) {

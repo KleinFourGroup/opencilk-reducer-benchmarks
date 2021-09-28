@@ -79,9 +79,9 @@ profile_exe()
         PFILE=$1_$CONFSUF.prof
         PLOG=$1_${CONFSUF}_profile.txt
     fi
-    echo "LD_PRELOAD=$LIBPROF CPUPROFILE=$PFILE CILK_NWORKERS=$NWORKERS ./$1_$CONFSUF ${@:2} &> /dev/null"
-    echo "google-pprof --text ./$1_$CONFSUF ./$PFILE &> logs/$PLOG"
-    echo "rm -f $PFILE"
+    LD_PRELOAD=$LIBPROF CPUPROFILE=$PFILE CILK_NWORKERS=$NWORKERS ./$1_$CONFSUF ${@:2} &> /dev/null
+    google-pprof --text ./$1_$CONFSUF ./$PFILE &> logs/$PLOG
+    rm -f $PFILE
 }
 
 default_parse()
@@ -467,8 +467,8 @@ full_stress_test()
     #build_and_test 0 1 0
     #build_and_test 0 0 1
     #build_and_test 0 1 1
-    build_and_test 1 0 0
-    #build_and_test 1 1 0
+    #build_and_test 1 0 0
+    build_and_test 1 1 0
     #build_and_test 1 0 1
     #build_and_test 1 1 1
     clean_exe
