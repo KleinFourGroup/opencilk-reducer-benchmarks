@@ -117,12 +117,13 @@ run_test()
 {
     # echo $@
     DATE=$(date "+%T")
+    RAM=$(awk '/^Mem/ {printf("%u%%\n", 100*$3/$2);}' <(free -m))
     if [ ! -e $3_$CONFSUF ]
     then
-        echo "${COMMENT}(${DATE}) $1 compilation failed!"
+        echo "${COMMENT}(${DATE} - ${RAM}) $1 compilation failed!"
         return 1
     else
-        echo "${COMMENT}(${DATE}) Running test $1 on $NWORKERS worker(s)"
+        echo "${COMMENT}(${DATE} - ${RAM}) Running test $1 on $NWORKERS worker(s)"
         echo "${COMMENT2}input: '${*:4}'"
     fi
     $2 $3 ${@:4}
@@ -135,12 +136,13 @@ run_test_custom_check()
 {
     # echo $@
     DATE=$(date "+%T")
+    RAM=$(awk '/^Mem/ {printf("%u%%\n", 100*$3/$2);}' <(free -m))
     if [ ! -e $4_$CONFSUF ]
     then
-        echo "${COMMENT}(${DATE}) $1 compilation failed!"
+        echo "${COMMENT}(${DATE} - ${RAM}) $1 compilation failed!"
         return 1
     else
-        echo "${COMMENT}(${DATE}) Running test $1 on $NWORKERS worker(s)"
+        echo "${COMMENT}(${DATE} - ${RAM}) Running test $1 on $NWORKERS worker(s)"
         echo "${COMMENT2}input: '${*:5}'"
     fi
     $2 $4 ${@:5}
@@ -156,12 +158,13 @@ profile_test()
     if [[ (! $PROFILE -eq 0) && ( (! $PROFILEPARALLEL -eq 0) || $NWORKERS -eq 1 ) ]]
     then
         DATE=$(date "+%T")
+        RAM=$(awk '/^Mem/ {printf("%u%%\n", 100*$3/$2);}' <(free -m))
         if [ ! -e $2_$CONFSUF ]
         then
-            echo "${COMMENT}${DATE}: $1 compilation failed!"
+            echo "${COMMENT}(${DATE} - ${RAM}) $1 compilation failed!"
             return 1
         else
-            echo "${COMMENT}${DATE}: Profiling test $1 on $NWORKERS worker(s)"
+            echo "${COMMENT}(${DATE} - ${RAM}) Profiling test $1 on $NWORKERS worker(s)"
             echo "${COMMENT2}input: '${*:3}'"
         fi
         profile_exe $2 ${@:3}
