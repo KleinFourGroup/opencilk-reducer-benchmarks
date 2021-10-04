@@ -54,12 +54,11 @@ CONF=""
 CONFSUF=""
 
 # Formatting
-HEADSEP=';'
-SEP=';'
+SEP="\t"
 ENDROW=''
-SECTION='####'
-COMMENT=' * '
-COMMENT2=' ** '
+SECTION="####"
+COMMENT="    "
+COMMENT2="        "
 
 run_exe()
 {
@@ -86,20 +85,32 @@ profile_exe()
 
 default_parse()
 {
-    RES="$(run_exe $@)"
-    CODE=$?
-    RET=$(echo "$RES" | tail -1)
-    printf "$RET"
-    return $CODE
+    RAWOUTPUT="$(run_exe $@)"
+    RETCODE=$?
+    RUNTIME=$(echo "$RAWOUTPUT" | tail -1)
+    AUXDATA=""
 }
 
 cilkscale_parse()
 {
-    RES="$(run_exe $@)"
-    CODE=$?
-    RET=$(echo "$RES" | tail -3 | head -1)
-    printf "$RET"
-    return $CODE
+    RAWOUTPUT="$(run_exe $@)"
+    RETCODE=$?
+    RUNTIME=$(echo "$RAWOUTPUT" | tail -3 | head -1)
+    WORK=$(echo "$RAWOUTPUT" | tail -1 | cut -d',' -f2)
+    SPAN=$(echo "$RAWOUTPUT" | tail -1 | cut -d',' -f3)
+    PARALLELISM=$(echo "$RAWOUTPUT" | tail -1 | cut -d',' -f4)
+    AUXDATA="$WORK,$SPAN,$PARALLELISM"
+}
+
+print_to_perf()
+{
+    printf "$1$SEP" >> $PERF
+    printf "$NWORKERS$SEP" >> $PERF
+    printf "$CONF$SEP" >> $PERF
+    printf "$RUNTIME$SEP" >> $PERF
+    printf "$AUXDATA$SEP" >> $PERF
+    printf "$RETCODE" >> $PERF
+    printf "%s\n" "$ENDROW" >> $PERF
 }
 
 run_test()
@@ -108,18 +119,16 @@ run_test()
     DATE=$(date "+%T")
     if [ ! -e $3_$CONFSUF ]
     then
-        printf "${COMMENT}${DATE}: $1 compilation failed!\n"
+        echo "${COMMENT}(${DATE}) $1 compilation failed!"
         return 1
     else
-        printf "${COMMENT}${DATE}: Running test $1 on $NWORKERS worker(s) with inputs '%s'... " "${*:4}"
+        echo "${COMMENT}(${DATE}) Running test $1 on $NWORKERS worker(s)"
+        echo "${COMMENT2}input: '${*:4}'"
     fi
-    ERR=0
-    printf "$1$HEADSEP$NWORKERS$SEP$CONF$SEP" >> $PERF
-    PARSED=$($2 $3 ${@:4})
-    ERR=$(($ERR+$?))
-    printf "$PARSED$SEP$ERR" >> $PERF
-    printf "runtime: $PARSED; errors: $ERR\n"
-    printf "%s\n" "$ENDROW" >> $PERF
+    $2 $3 ${@:4}
+    echo "${COMMENT2}runtime: $RUNTIME"
+    echo "${COMMENT2}return code: $RETCODE"
+    print_to_perf "$1"
 }
 
 run_test_custom_check()
@@ -128,19 +137,17 @@ run_test_custom_check()
     DATE=$(date "+%T")
     if [ ! -e $4_$CONFSUF ]
     then
-        printf "${COMMENT}${DATE}: $1 compilation failed!\n"
+        echo "${COMMENT}(${DATE}) $1 compilation failed!"
         return 1
     else
-        printf "${COMMENT}${DATE}: Running test $1 on $NWORKERS worker(s) with inputs '%s'... " "${*:5}"
+        echo "${COMMENT}(${DATE}) Running test $1 on $NWORKERS worker(s)"
+        echo "${COMMENT2}input: '${*:5}'"
     fi
-    ERR=0
-    printf "$1$HEADSEP$NWORKERS$SEP$CONF$SEP" >> $PERF
-    PARSED=$($2 $4 ${@:5})
+    $2 $4 ${@:5}
     $3
-    ERR=$(($ERR+$?))
-    printf "$PARSED$SEP$ERR" >> $PERF
-    printf "runtime: $PARSED; errors: $ERR\n"
-    printf "%s\n" "$ENDROW" >> $PERF
+    echo "${COMMENT2}runtime: $RUNTIME"
+    echo "${COMMENT2}return code: $RETCODE"
+    print_to_perf "$1"
 }
 
 profile_test()
@@ -151,10 +158,11 @@ profile_test()
         DATE=$(date "+%T")
         if [ ! -e $2_$CONFSUF ]
         then
-            printf "${COMMENT}${DATE}: $1 compilation failed!\n"
+            echo "${COMMENT}${DATE}: $1 compilation failed!"
             return 1
         else
-            printf "${COMMENT}${DATE}: Profiling test $1 on $NWORKERS worker(s) with inputs '%s'...\n" "${*:3}"
+            echo "${COMMENT}${DATE}: Profiling test $1 on $NWORKERS worker(s)"
+            echo "${COMMENT2}input: '${*:3}'"
         fi
         profile_exe $2 ${@:3}
     fi
@@ -413,7 +421,7 @@ check_dedup()
     then
         ERR=1
     fi
-    return $ERR
+    RETCODE=$(($RETCODE+$ERR))
 }
 
 test_dedup()

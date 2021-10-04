@@ -12,16 +12,17 @@ rwidth = 0.75
 
 def parse_file():
     fin = open("perf.csv")
-    data_csv = csv.reader(fin, delimiter=";")
+    data_csv = csv.reader(fin, delimiter="\t")
     for row in data_csv:
         test = row[0]
         if not test in raw_data:
             raw_data[test] = []
         if row[-1] == "0":
-            prow = [bool(int(row[1])),
+            prow = [int(row[1]),
                     bool(int(row[2])),
                     bool(int(row[3])),
-                    float(row[4])]
+                    bool(int(row[4])),
+                    float(row[5])]
             raw_data[test].append(prow)
 
 # Utils
@@ -76,7 +77,7 @@ def getperf(row, maxv):
 
 def getrow(row, maxv):
     r = []
-    for i in range(0,len(row) - 2):
+    for i in range(1,len(row) - 2):
         r.append(checkmark(row[i]))
     r.extend(getperf(row, maxv))
     return " & ".join(r) + "\\\\"
@@ -113,21 +114,30 @@ def printtable(perftable, hasTime):
         print(getrow(row, maxv))
     print("\\hline\n\\end{tabular*}")
 
-def optdata(raw_data):
+def optdata(raw_data, workers):
     opt = []
     for test in raw_data:
-        noopt = filter(lambda row: (not row[0]) and (not row[1]) and (not row[2]), raw_data[test])
-        allopt = filter(lambda row: row[0] and row[1] and row[2], raw_data[test])
+        noopt = filter(lambda row: (row[0] == workers) and
+                                   (not row[1]) and
+                                   (not row[2]) and
+                                   (not row[3]), raw_data[test])
+        allopt = filter(lambda row: (row[0] == workers) and
+                                    row[1] and
+                                    row[2] and
+                                    row[3], raw_data[test])
         opt.append([test, next(noopt)[-1] / next(allopt)[-1]])
     return opt
 
-def mergetable(raw_data):
+def mergedata(raw_data, workers):
+    filtered_data = {}
     for test in raw_data:
-        addspeedup(raw_data[test], True)
-    template = next(iter(raw_data.values()))
+        fdat = [row.copy() for row in raw_data[test] if row[0] == workers]
+        addspeedup(fdat, True)
+        filtered_data[test] = fdat
+    template = next(iter(filtered_data.values()))
     ret = [row.copy() for row in template]
     for i in range(len(ret)):
-        vals = [raw_data[test][i][-1] for test in raw_data]
+        vals = [filtered_data[test][i][-1] for test in raw_data]
         ret[i][-2] = geometric_mean(vals)
         ret[i][-1] = geometric_mean(vals)
     return sorted(ret, key=getkey, reverse=False)
@@ -137,10 +147,10 @@ for data in raw_data:
     printtable(data, False)
    """
 
+w = 1
 parse_file()
-opt = optdata(raw_data)
-data = mergetable(raw_data)
-maxv = getmax(data)
+opt = optdata(raw_data, w)
+data = mergedata(raw_data, w)
 
 #print(tablebegin())
 #print(tableheader(False))
@@ -150,7 +160,9 @@ maxv = getmax(data)
 printtable(data, False)
 
 for test in raw_data:
-    tdata = sorttable(raw_data[test])
+    fdat = [row.copy() for row in raw_data[test] if row[0] == w]
+    addspeedup(fdat, True)
+    tdata = sorttable(fdat)
     maxv = getmax(tdata)
     print(tablebegin())
     print(tableheader(False, test))
