@@ -150,8 +150,8 @@ int main(int argc, const char **args) {
     uint64_t * correct = get_correct(arr, n, 1000000);
 
     for (i = 0; i < TIMING_COUNT; i++) {
-        begin = ktiming_getmark();
         prepare();
+        begin = ktiming_getmark();
 
         switch(check) {
         case 0:
@@ -166,9 +166,9 @@ int main(int argc, const char **args) {
             break;
         }
 
+        end = ktiming_getmark();
         res += check_bins(correct, check) ? 1 : 0;
         cleanup();
-        end = ktiming_getmark();
         running_time[i] = ktiming_diff_nsec(&begin, &end);
     }
     printf("Result: %d/%d successes!\n", res, TIMING_COUNT);
