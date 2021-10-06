@@ -5,17 +5,35 @@
 CC=$HOME/opencilk/build/bin/clang
 CXX=$HOME/opencilk/build/bin/clang++
 SENT=$HOME/opencilk/opencilk-project/cheetah/include/cilk/sentinel.h
+# Default: find /usr -name "libprofiler.*"
+LIBPROF=/usr/lib/x86_64-linux-gnu/libprofiler.so.0
+if [ ! -e $LIBPROF ]
+then
+    CANPROFILE=0
+else
+    CANPROFILE=1
+fi
 PERF=perf.csv
 OPT=-O3
 
+#### Formatting
+SEP="\t"
+ENDROW=''
+SECTION="####"
+COMMENT="    "
+COMMENT2="        "
 
-SPOOFRUN=0
-SPOOFCOMP=0
+
+#### Parsing arguments
+
+# Nothing yet
+
+#### Test inputs
+
+SPOOF=0
 
 # Default: 5
 REPS=5
-# Default: find /usr -name "libprofiler.*"
-LIBPROF=/usr/lib/x86_64-linux-gnu/libprofiler.so.0
 # Default: 1
 PROFILE=0
 # Default: 0
@@ -60,18 +78,40 @@ CG=3
 CONF=""
 CONFSUF=""
 
-# Formatting
-SEP="\t"
-ENDROW=''
-SECTION="####"
-COMMENT="    "
-COMMENT2="        "
+#### Utility functions
+
+over_worker_range()
+{
+    for ((NWORKERS=$STARTNWORKERS;NWORKERS<=$STOPNWORKERS;NWORKERS++))
+    do
+        $@
+    done
+    NWORKERS=$STARTNWORKERS
+}
+
+print_to_perf()
+{
+    printf "$1$SEP" >> $PERF
+    printf "$NWORKERS$SEP" >> $PERF
+    printf "$CONF$SEP" >> $PERF
+    printf "$RUNTIME$SEP" >> $PERF
+    printf "$AUXDATA$SEP" >> $PERF
+    printf "$RETCODE" >> $PERF
+    printf "%s\n" "$ENDROW" >> $PERF
+}
+
+#### Running and profiling primitives
 
 run_exe()
 {
     # echo $@
     # echo CILK_NWORKERS=$NWORKERS ./$1_$CONFSUF ${@:2}
-    CILK_NWORKERS=$NWORKERS ./$1_$CONFSUF ${@:2} 2> /dev/null
+    if [[ $SPOOF -eq 0 ]]
+    then
+        CILK_NWORKERS=$NWORKERS ./$1_$CONFSUF ${@:2} 2> /dev/null
+    else
+        echo "# CILK_NWORKERS=$NWORKERS ./$1_$CONFSUF ${@:2} 2> /dev/null"
+    fi
 }
 
 profile_exe()
@@ -85,10 +125,19 @@ profile_exe()
         PFILE=$1_$CONFSUF.prof
         PLOG=$1_${CONFSUF}_profile.txt
     fi
-    LD_PRELOAD=$LIBPROF CPUPROFILE=$PFILE CILK_NWORKERS=$NWORKERS ./$1_$CONFSUF ${@:2} &> /dev/null
-    google-pprof --text ./$1_$CONFSUF ./$PFILE &> logs/$PLOG
-    rm -f $PFILE
+    if [[ ($SPOOF -eq 0) && (! $CANPROFILE -eq 0) ]]
+    then
+        LD_PRELOAD=$LIBPROF CPUPROFILE=$PFILE CILK_NWORKERS=$NWORKERS ./$1_$CONFSUF ${@:2} &> /dev/null
+        google-pprof --text ./$1_$CONFSUF ./$PFILE &> logs/$PLOG
+        rm -f $PFILE
+    else
+        echo "# LD_PRELOAD=$LIBPROF CPUPROFILE=$PFILE CILK_NWORKERS=$NWORKERS ./$1_$CONFSUF ${@:2} &> /dev/null"
+        echo "# google-pprof --text ./$1_$CONFSUF ./$PFILE &> logs/$PLOG"
+        echo "# rm -f $PFILE"
+    fi
 }
+
+#### Parsing and testing output
 
 default_parse()
 {
@@ -109,51 +158,55 @@ cilkscale_parse()
     AUXDATA="$WORK,$SPAN,$PARALLELISM"
 }
 
-print_to_perf()
+default_check()
 {
-    printf "$1$SEP" >> $PERF
-    printf "$NWORKERS$SEP" >> $PERF
-    printf "$CONF$SEP" >> $PERF
-    printf "$RUNTIME$SEP" >> $PERF
-    printf "$AUXDATA$SEP" >> $PERF
-    printf "$RETCODE" >> $PERF
-    printf "%s\n" "$ENDROW" >> $PERF
+    RETCODE=$(($RETCODE))
 }
 
+dedup_check()
+{
+    # Prepare for spaghetti code
+    ERR=0
+    ./dedup-serial_$CONFSUF ${DEDUP_SERC[@]} &> /dev/null
+    diff reducer.dat.ddp serial.dat.ddp &> /dev/null
+    ERR=$(($ERR+$?))
+    run_exe dedup-reducer ${DEDUP_REDU[@]} &> /dev/null
+    diff uncompressed.dat $DEDUP_TEST/media.dat &> /dev/null
+    ERR=$(($ERR+$?))
+    if [[ ! $ERR -eq 0 ]]
+    then
+        ERR=1
+    fi
+    RETCODE=$(($RETCODE+$ERR))
+}
+
+# $1 = test name
+# $2 = output parser
+# $3 = output checker
+# $4 = executable file
+# $5... arguments
 run_test()
 {
     # echo $@
     DATE=$(date "+%T")
-    RAM=$(awk '/^Mem/ {printf("%u%%\n", 100*$3/$2);}' <(free -m))
-    if [ ! -e $3_$CONFSUF ]
-    then
-        echo "${COMMENT}(${DATE} - ${RAM}) $1 compilation failed!"
-        return 1
-    else
-        echo "${COMMENT}(${DATE} - ${RAM}) Running test $1 on $NWORKERS worker(s)"
-        echo "${COMMENT2}input: '${*:4}'"
-    fi
-    $2 $3 ${@:4}
-    echo "${COMMENT2}runtime: $RUNTIME"
-    echo "${COMMENT2}return code: $RETCODE"
-    print_to_perf "$1"
-}
-
-run_test_custom_check()
-{
-    # echo $@
-    DATE=$(date "+%T")
-    RAM=$(awk '/^Mem/ {printf("%u%%\n", 100*$3/$2);}' <(free -m))
     if [ ! -e $4_$CONFSUF ]
     then
-        echo "${COMMENT}(${DATE} - ${RAM}) $1 compilation failed!"
+        echo "${COMMENT}(${DATE}) $1 compilation failed!"
         return 1
     else
-        echo "${COMMENT}(${DATE} - ${RAM}) Running test $1 on $NWORKERS worker(s)"
+        echo "${COMMENT}(${DATE}) Running test $1 on $NWORKERS worker(s)"
         echo "${COMMENT2}input: '${*:5}'"
     fi
-    $2 $4 ${@:5}
-    $3
+    if [[ $SPOOF -eq 0 ]]
+    then
+        $2 $4 ${@:5}
+        $3
+    else
+        run_exe $4 ${@:5}
+        RETCODE=0
+        RUNTIME=0.00
+        AUXDATA=""
+    fi
     echo "${COMMENT2}runtime: $RUNTIME"
     echo "${COMMENT2}return code: $RETCODE"
     print_to_perf "$1"
@@ -165,27 +218,19 @@ profile_test()
     if [[ (! $PROFILE -eq 0) && ( (! $PROFILEPARALLEL -eq 0) || $NWORKERS -eq 1 ) ]]
     then
         DATE=$(date "+%T")
-        RAM=$(awk '/^Mem/ {printf("%u%%\n", 100*$3/$2);}' <(free -m))
         if [ ! -e $2_$CONFSUF ]
         then
-            echo "${COMMENT}(${DATE} - ${RAM}) $1 compilation failed!"
+            echo "${COMMENT}(${DATE}) $1 compilation failed!"
             return 1
         else
-            echo "${COMMENT}(${DATE} - ${RAM}) Profiling test $1 on $NWORKERS worker(s)"
+            echo "${COMMENT}(${DATE}) Profiling test $1 on $NWORKERS worker(s)"
             echo "${COMMENT2}input: '${*:3}'"
         fi
         profile_exe $2 ${@:3}
     fi
 }
 
-over_worker_range()
-{
-    for ((NWORKERS=$STARTNWORKERS;NWORKERS<=$STOPNWORKERS;NWORKERS++))
-    do
-        $@
-    done
-    NWORKERS=$STARTNWORKERS
-}
+#### Building the runtime
 
 config()
 {
@@ -223,6 +268,8 @@ build()
     sh opencilk.sh build &> $LOC/logs/build_${CONFSUF}_log.txt
     cd stress_test
 }
+
+#### Compilation
 
 # $1 = file ; $2 = f flags ; $3 = .o files ; $4 = linked libraries
 compile_c_test_internal()
@@ -313,6 +360,8 @@ compile()
     $CC $OPT -fopencilk ktiming.o peer_set_pure_test.o -o peer_set_pure_test_$CONFSUF
 }
 
+#### Cleanup
+
 clean_make()
 {
     cd $1; make -s clean; cd ..
@@ -351,94 +400,81 @@ clean_all()
     clean_exe
 }
 
+#### Specific tests
+
 test_intsum()
 {
-    run_test "intsum" default_parse intsum_check $INTSUM $CR
+    run_test "intsum" default_parse default_check intsum_check $INTSUM $CR
     profile_test "intsum" intsum_check $INTSUM $CR
 }
 
 test_fib()
 {
-    run_test "fib" default_parse fib $FIB $CR
+    run_test "fib" default_parse default_check fib $FIB $CR
     profile_test "fib" fib $FIB $CR
 }
 
 test_histogram()
 {
-    run_test "histogram" default_parse histogram ${HIST[@]} $CR
+    run_test "histogram" default_parse default_check histogram ${HIST[@]} $CR
     profile_test "histogram" histogram ${HIST[@]} $CR
 }
 
 test_intlist()
 {
-    run_test "intlist" default_parse intlist $INTLIST $CR
+    run_test "intlist" default_parse default_check intlist $INTLIST $CR
     profile_test "intlist" intlist $INTLIST $CR
 }
 
 test_bfs()
 {
-    run_test "PBFS" default_parse bfs ${PBFS[@]}
+    run_test "PBFS" default_parse default_check bfs ${PBFS[@]}
     profile_test "PBFS" bfs ${PBFS[@]}
 }
 
 test_cilkscale_fib()
 {
-    run_test "cilkscale (fib)" cilkscale_parse cilkscale_fib $CSCALE_FIB
+    run_test "cilkscale (fib)" cilkscale_parse default_check cilkscale_fib $CSCALE_FIB
     profile_test "cilkscale (fib)" cilkscale_fib $CSCALE_FIB
 }
 
 test_cilkscale_intsum()
 {
-    run_test "cilkscale (intsum)" cilkscale_parse cilkscale_intsum $CSCALE_INTSUM
+    run_test "cilkscale (intsum)" cilkscale_parse default_check cilkscale_intsum $CSCALE_INTSUM
     profile_test "cilkscale (intsum)" cilkscale_intsum $CSCALE_INTSUM
 }
 
 test_fft()
 {
-    run_test "fft" cilkscale_parse fft ${CSCALE_FFT[@]}
+    run_test "fft" cilkscale_parse default_check fft ${CSCALE_FFT[@]}
     profile_test "fft" fft ${CSCALE_FFT[@]}
 }
 
 test_apsp()
 {
-    run_test "apsp" cilkscale_parse apsp-matteo
+    run_test "apsp" cilkscale_parse default_check apsp-matteo
     profile_test "apsp" apsp-matteo
 }
 
 test_BlackScholes()
 {
-    run_test "BlackScholes" cilkscale_parse BlackScholes # No arguments
+    run_test "BlackScholes" cilkscale_parse default_check BlackScholes # No arguments
     profile_test "BlackScholes" BlackScholes # No arguments
 }
 
 test_Mandelbrot()
 {
-    run_test "Mandelbrot" cilkscale_parse Mandelbrot # No arguments
+    run_test "Mandelbrot" cilkscale_parse default_check Mandelbrot # No arguments
     profile_test "Mandelbrot" Mandelbrot # No arguments
-}
-
-check_dedup()
-{
-    # Prepare for spaghetti code
-    ERR=0
-    ./dedup-serial_$CONFSUF ${DEDUP_SERC[@]} &> /dev/null
-    diff reducer.dat.ddp serial.dat.ddp &> /dev/null
-    ERR=$(($ERR+$?))
-    run_exe dedup-reducer ${DEDUP_REDU[@]} &> /dev/null
-    diff uncompressed.dat $DEDUP_TEST/media.dat &> /dev/null
-    ERR=$(($ERR+$?))
-    if [[ ! $ERR -eq 0 ]]
-    then
-        ERR=1
-    fi
-    RETCODE=$(($RETCODE+$ERR))
 }
 
 test_dedup()
 {
-    run_test_custom_check "dedup" default_parse check_dedup dedup-reducer ${DEDUP_REDC[@]}
+    run_test "dedup" default_parse dedup_check dedup-reducer ${DEDUP_REDC[@]}
     profile_test "dedup" dedup-reducer ${DEDUP_REDC[@]}
 }
+
+#### Running everything
 
 make_runtime()
 {
@@ -494,5 +530,7 @@ full_stress_test()
     echo "$SECTION Testing complete! $SECTION"
     date
 }
+
+#### Actually run the tests
 
 full_stress_test
