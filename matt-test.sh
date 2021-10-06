@@ -39,6 +39,15 @@ CONFSUF=""
 
 #### Parsing arguments
 
+parse_confexp()
+{
+    case "$1" in
+        full) set_confexp "...";;
+        direct) set_confexp "(000)|(111)";;
+        *) set_confexp "$1";;
+    esac
+}
+
 parse_range()
 {
     case "$1" in
@@ -67,6 +76,11 @@ set_spoof()
 set_reps()
 {
     REPS=$1
+}
+
+set_confexp()
+{
+    CONFEXP="$1"
 }
 
 set_profiling()
@@ -553,9 +567,12 @@ run_tests()
 
 build_and_test()
 {
-    config $1 $2 $3
-    make_runtime
-    run_tests
+    if [[ $1$2$3 =~ $CONFEXP ]]
+    then
+        config $1 $2 $3
+        make_runtime
+        run_tests
+    fi
 }
 
 full_stress_test()
@@ -563,14 +580,14 @@ full_stress_test()
     clean_all
     mkdir -p logs
     mkdir -p asm
-    #build_and_test 0 0 0
-    #build_and_test 0 1 0
-    #build_and_test 0 0 1
-    #build_and_test 0 1 1
-    #build_and_test 1 0 0
+    build_and_test 0 0 0
+    build_and_test 0 1 0
+    build_and_test 0 0 1
+    build_and_test 0 1 1
+    build_and_test 1 0 0
     build_and_test 1 1 0
-    #build_and_test 1 0 1
-    #build_and_test 1 1 1
+    build_and_test 1 0 1
+    build_and_test 1 1 1
     clean_exe
     echo "$SECTION Testing complete! $SECTION"
     date
@@ -580,27 +597,38 @@ full_stress_test()
 
 set_spoof 1
 set_reps 5
+set_confexp 110
 
 if [[ $# -eq 0 ]]
 then
+    parse_confexp 110
     parse_inputs fast
     parse_range fast
     set_profiling 0
 elif [[ $# -eq 1 ]]
 then
-    parse_inputs $1
+    parse_confexp "$1"
+    parse_inputs fast
     parse_range fast
     set_profiling 0
 elif [[ $# -eq 2 ]]
 then
-    parse_inputs $1
-    parse_range $2
+    parse_confexp "$1"
+    parse_inputs $2
+    parse_range fast
     set_profiling 0
 elif [[ $# -eq 3 ]]
 then
-    parse_inputs $1
-    parse_range $2
-    set_profiling $3
+    parse_confexp "$1"
+    parse_inputs $2
+    parse_range $3
+    set_profiling 0
+elif [[ $# -eq 4 ]]
+then
+    parse_confexp "$1"
+    parse_inputs $2
+    parse_range $3
+    set_profiling $4
 else
     echo "Too many arguments!"
     return 1
