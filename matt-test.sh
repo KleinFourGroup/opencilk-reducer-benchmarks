@@ -23,51 +23,10 @@ SECTION="####"
 COMMENT="    "
 COMMENT2="        "
 
-
-#### Parsing arguments
-
-# Nothing yet
-
-#### Test inputs
-
-SPOOF=0
-
-# Default: 5
-REPS=5
-# Default: 1
-PROFILE=0
-# Default: 0
-PROFILEPARALLEL=0
 # Default: 1, but it's truly irrelevant
 NWORKERS=1
-# Default: 1
-STARTNWORKERS=1
-# Default: 8
-STOPNWORKERS=3
 # Default: 0
 FULLTEST=0
-
-# Default: *100
-INTSUM=$((25000000*1))
-# Default: +3
-FIB=$((40-1))
-# Default: 256, *2/5
-HIST=(256 $(($INTSUM*2/5)))
-# Default: *100
-INTLIST=$((2000000*1))
-# Default: -f vanHeukelum-cage15.bin -a p -c
-PBFS=(-f pbfs/vanHeukelum-cage15.bin -a p -c)
-# Default: -5
-CSCALE_FIB=$(($FIB-5))
-# Default: *10
-CSCALE_INTSUM=$(($INTSUM*10))
-# Default: -n 20000000
-CSCALE_FFT=(-n 10000000 -c)
-# Default: dedup/data/simlarge
-DEDUP_TEST=dedup/data/simsmall
-DEDUP_REDC=(-c -i $DEDUP_TEST/media.dat -o reducer.dat.ddp)
-DEDUP_SERC=(-c -i $DEDUP_TEST/media.dat -o serial.dat.ddp)
-DEDUP_REDU=(-u -i reducer.dat.ddp -o uncompressed.dat)
 
 # Overhead codes
 SG=0
@@ -77,6 +36,92 @@ CG=3
 
 CONF=""
 CONFSUF=""
+
+#### Parsing arguments
+
+parse_range()
+{
+    case "$1" in
+        full) set_range 1 8;;
+        fast) set_range 1 3;;
+        serial) set_range 1 1;;
+        *) echo "Unrecognized input setting; defaulting to 'fast'"; set_range 1 3;;
+    esac
+}
+
+parse_inputs()
+{
+    case "$1" in
+        full) set_inputs 100 3 20000000 dedup/data/simlarge;;
+        mid) set_inputs 60 2 15000000 dedup/data/simmedium;;
+        fast) set_inputs 1 -1 10000000 dedup/data/simsmall;;
+        *) echo "Unrecognized input setting; defaulting to 'fast'";  set_inputs 1 -1 10000000 dedup/data/simsmall;;
+    esac
+}
+
+set_spoof()
+{
+    SPOOF=$1
+}
+
+set_reps()
+{
+    REPS=$1
+}
+
+set_profiling()
+{
+    if [[ $1 -eq 0 ]]
+    then
+        PROFILE=0
+        PROFILEPARALLEL=0
+    elif [[ $1 -eq 1 ]]
+    then
+        PROFILE=1
+        PROFILEPARALLEL=0
+    elif [[ $1 -eq 2 ]]
+    then
+        PROFILE=1
+        PROFILEPARALLEL=1
+    else
+        PROFILE=0
+        PROFILEPARALLEL=0
+    fi
+}
+
+set_range()
+{
+    STARTNWORKERS=$1
+    STOPNWORKERS=$2
+}
+
+set_inputs()
+{
+    # Default: 100
+    INTMULT=$1
+    # Default: 3
+    FIBOFFSET=$2
+    # Default: 20000000
+    FFTN=$3
+    # Default: dedup/data/simlarge
+    DEDUP_TEST=$4
+
+    INTSUM=$((25000000*$INTMULT))
+    FIB=$((40+$FIBOFFSET))
+    HIST=(256 $(($INTSUM*2/5)))
+    INTLIST=$((2000000*$INTMULT))
+    PBFS=(-f pbfs/vanHeukelum-cage15.bin -a p -c)
+    CSCALE_FIB=$(($FIB-5))
+    CSCALE_INTSUM=$(($INTSUM*10))
+    CSCALE_FFT=(-n $FFTN -c)
+    DEDUP_REDC=(-c -i $DEDUP_TEST/media.dat -o reducer.dat.ddp)
+    DEDUP_SERC=(-c -i $DEDUP_TEST/media.dat -o serial.dat.ddp)
+    DEDUP_REDU=(-u -i reducer.dat.ddp -o uncompressed.dat)
+}
+
+
+
+#### Test inputs
 
 #### Utility functions
 
@@ -532,5 +577,34 @@ full_stress_test()
 }
 
 #### Actually run the tests
+
+set_spoof 1
+set_reps 5
+
+if [[ $# -eq 0 ]]
+then
+    parse_inputs fast
+    parse_range fast
+    set_profiling 0
+elif [[ $# -eq 1 ]]
+then
+    parse_inputs $1
+    parse_range fast
+    set_profiling 0
+elif [[ $# -eq 2 ]]
+then
+    parse_inputs $1
+    parse_range $2
+    set_profiling 0
+elif [[ $# -eq 3 ]]
+then
+    parse_inputs $1
+    parse_range $2
+    set_profiling $3
+else
+    echo "Too many arguments!"
+    return 1
+fi
+
 
 full_stress_test
