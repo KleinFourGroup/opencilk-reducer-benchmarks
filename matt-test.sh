@@ -1,9 +1,16 @@
 #!/bin/bash
+
+#### Fixed variables
+
 CC=$HOME/opencilk/build/bin/clang
 CXX=$HOME/opencilk/build/bin/clang++
 SENT=$HOME/opencilk/opencilk-project/cheetah/include/cilk/sentinel.h
 PERF=perf.csv
 OPT=-O3
+
+
+SPOOFRUN=0
+SPOOFCOMP=0
 
 # Default: 5
 REPS=5
@@ -489,129 +496,3 @@ full_stress_test()
 }
 
 full_stress_test
-
-#Old funcs
-
-test_header()
-{
-    printf "TEST$HEADSEP"
-    if [ $1 -eq 1 ]
-    then
-        
-        printf "SG$SEP"
-        printf "SR$SEP"
-        printf "CG$SEP"
-    fi
-    printf "CR%s\n" "$ENDROW"
-}
-
-# $1 = test name ; $2 = exe name ; $3 = input
-# $1 = test name ; $2 = parser ; $3 = exe name ; $4 = input
-run_overhead_test()
-{
-    # echo $@
-    if [ ! -e $3_$CONFSUF ]
-    then
-        printf "$1 compilation failed!\n"
-        return 1
-    fi
-    ERR=0
-    printf "$1$HEADSEP$CONF$SEP"
-    $2 $3 ${@:4} 0
-    ERR=$(($ERR+$?))
-    printf "$SEP"
-    $2 $3 ${@:4} 1
-    ERR=$(($ERR+$?))
-    printf "$SEP"
-    $2 $3 ${@:4} 3
-    ERR=$(($ERR+$?))
-    printf "$SEP"
-    $2 $3 ${@:4} 2
-    ERR=$(($ERR+$?))
-    printf "$SEP$ERR"
-    printf "%s\n" "$ENDROW"
-}
-
-test_intsum_old()
-{
-    if [ ! -e intsum_check_$CONFSUF ]
-    then
-        printf "intsum compilation failed!\n"
-        return 1
-    fi
-    ERR=0
-    printf "intsum$HEADSEP"
-    if [ $1 -eq 1 ]
-    then
-        run_exe intsum_check $INTSUM 0
-        ERR=$(($ERR+$?))
-        printf "$SEP"
-        run_exe intsum_check $INTSUM 1
-        ERR=$(($ERR+$?))
-        printf "$SEP"
-        run_exe intsum_check $INTSUM 3
-        ERR=$(($ERR+$?))
-        printf "$SEP"
-    fi
-    run_exe intsum_check $INTSUM 2
-    ERR=$(($ERR+$?))
-    printf "$SEP"
-    if [ $ERR -eq 0 ]
-    then
-        printf 'No errors!'
-    else
-        printf '$ERR errors!'
-    fi
-    printf "%s\n" "$ENDROW"
-}
-
-test_fib_old()
-{
-    if [ ! -e fib_$CONFSUF ]
-    then
-        printf "fib compilation failed!\n"
-        return 1
-    fi
-    ERR=0
-    printf "fib$HEADSEP"
-    if [ $1 -eq 1 ]
-    then
-        run_exe fib $FIB 0
-        ERR=$(($ERR+$?))
-        printf "$SEP"
-        run_exe fib $FIB 1
-        ERR=$(($ERR+$?))
-        printf "$SEP"
-        run_exe fib $FIB 3
-        ERR=$(($ERR+$?))
-        printf "$SEP"
-    fi
-    run_exe fib $FIB 2
-    ERR=$(($ERR+$?))
-    printf "$SEP"
-    if [ $ERR -eq 0 ]
-    then
-        printf 'No errors!'
-    else
-        printf '$ERR errors!'
-    fi
-    printf "%s\n" "$ENDROW"
-}
-
-test_peer()
-{
-    if [ ! -e peer_set_pure_test_$CONFSUF ]
-    then
-        printf "vecsum compilation failed!\n"
-        return 1
-    fi
-    printf "vecsum$HEADSEP"
-    CILK_NWORKERS=1 ./peer_set_pure_test_$CONFSUF $INTSUM 0
-    printf "$SEP"
-    CILK_NWORKERS=1 ./peer_set_pure_test_$CONFSUF $INTSUM 1
-    printf "$SEP"
-    CILK_NWORKERS=1 ./peer_set_pure_test_$CONFSUF $INTSUM 2
-    printf "$SEP"
-    CILK_NWORKERS=1 ./peer_set_pure_test_$CONFSUF $INTSUM 3
-    printf "%s\n" "$ENDROW"
-}
