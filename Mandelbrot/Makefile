@@ -2,7 +2,7 @@ CC := $(HOME)/opencilk/build/bin/clang
 CXX := $(HOME)/opencilk/build/bin/clang++
 
 OPT := -O3
-CILKFLAGS := -fopencilk -fcilktool=cilkscale
+CILKFLAGS := -fopencilk -fcilktool=cilkscale $(HFLAG)
 
 CFLAGS :=
 LIBFLAGS := 

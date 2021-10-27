@@ -2,7 +2,7 @@
 TARGET = dedup
 CC := $(HOME)/opencilk/build/bin/clang
 CXX := $(HOME)/opencilk/build/bin/clang++
-CILKFLAG := -fopencilk
+CILKFLAG := -fopencilk $(HFLAG)
 
 .PHONY: all clean serial reducer check
 

@@ -73,6 +73,11 @@ set_spoof()
     SPOOF=$1
 }
 
+set_fast_hyperobjects()
+{
+    FASTHYPER=$1
+}
+
 set_reps()
 {
     REPS=$1
@@ -294,6 +299,15 @@ profile_test()
 config()
 {
     echo "$SECTION Running test | SPA: $1; Inline: $2; Peer: $3 $SECTION"
+
+    # Setting hidden checks
+    if [[ (! FASTHYPER -eq 0) && (! $3 -eq 0) ]]
+    then
+        HFLAG="-mllvm -fast-hyper-object"
+    else
+        HFLAG=""
+    fi
+
     date
     CONF=$1"$SEP"$2"$SEP"$3
     CONFSUF=$1$2$3
@@ -334,20 +348,24 @@ build()
 compile_c_test_internal()
 {
     rm -rf $1_$CONFSUF
-    $CC $OPT -g -c -DTIMING_COUNT=$REPS $2 -o $1.o $1.c
-    $CC $OPT -S -emit-llvm -DTIMING_COUNT=$REPS $2 -o asm/$1_$CONFSUF.ll $1.c
-    $CC $OPT -S -DTIMING_COUNT=$REPS $2 -o asm/$1_$CONFSUF.s $1.c
-    $CC $OPT $2 $3 $1.o $4 -o $1_$CONFSUF
+    echo "${COMMENT2}$CC $OPT $HFLAG -g -c -DTIMING_COUNT=$REPS $2 -o $1.o $1.c"
+    $CC $OPT $HFLAG -g -c -DTIMING_COUNT=$REPS $2 -o $1.o $1.c
+    $CC $OPT $HFLAG -S -emit-llvm -DTIMING_COUNT=$REPS -ftapir=none -o asm/$1_$CONFSUF.ll $1.c
+    $CC $OPT $HFLAG -S -DTIMING_COUNT=$REPS $2 -o asm/$1_$CONFSUF.s $1.c
+    echo "${COMMENT2}$CC $OPT $HFLAG $2 $3 $1.o $4 -o $1_$CONFSUF"
+    $CC $OPT $HFLAG $2 $3 $1.o $4 -o $1_$CONFSUF
 }
 
 # $1 = file ; $2 = f flags ; $3 = .o files ; $4 = linked libraries
 compile_cxx_test_internal()
 {
     rm -rf $1_$CONFSUF
-    $CXX $OPT -g -c -DTIMING_COUNT=$REPS $2 -o $1.o $1.cpp
-    $CXX $OPT -S -emit-llvm -DTIMING_COUNT=$REPS $2 -o asm/$1_$CONFSUF.ll $1.cpp
-    $CXX $OPT -S -DTIMING_COUNT=$REPS $2 -o asm/$1_$CONFSUF.s $1.cpp
-    $CXX $OPT $2 $3 $1.o $4 -o $1_$CONFSUF
+    echo "${COMMENT2}$CXX $OPT $HFLAG -g -c -DTIMING_COUNT=$REPS $2 -o $1.o $1.cpp"
+    $CXX $OPT $HFLAG -g -c -DTIMING_COUNT=$REPS $2 -o $1.o $1.cpp
+    $CXX $OPT $HFLAG -S -emit-llvm -DTIMING_COUNT=$REPS $2 -o asm/$1_$CONFSUF.ll $1.cpp
+    $CXX $OPT $HFLAG -S -DTIMING_COUNT=$REPS $2 -o asm/$1_$CONFSUF.s $1.cpp
+    echo "${COMMENT2}$CXX $OPT $HFLAG $2 $3 $1.o $4 -o $1_$CONFSUF"
+    $CXX $OPT $HFLAG $2 $3 $1.o $4 -o $1_$CONFSUF
 }
 
 compile_test()
@@ -378,7 +396,10 @@ compile_with_make()
 {
     echo "${COMMENT}Compiling $1 with $2/Makefile"
     rm -rf $1_$CONFSUF
-    cd $2; make -s clean; make -s; cd ..
+    cd $2
+    make -s clean
+    make HFLAG="$HFLAG" | sed "s/^/${COMMENT2}/"
+    cd ..
     cp $2/$1 $1_$CONFSUF
 }
 
@@ -386,7 +407,10 @@ compile_dedup()
 {
     echo "${COMMENT}Compiling dedup with dedup/src/Makefile"
     rm -rf dedup-reducer_$CONFSUF dedup-serial_$CONFSUF
-    cd dedup/src; make -s clean; make -s; cd ../..
+    cd dedup/src
+    make -s clean
+    make HFLAG="$HFLAG" | sed "s/^/${COMMENT2}/"
+    cd ../..
     cp dedup/src/dedup-reducer dedup-reducer_$CONFSUF
     cp dedup/src/dedup-serial dedup-serial_$CONFSUF
 }
@@ -598,6 +622,7 @@ full_stress_test()
 set_spoof 1
 set_reps 5
 set_confexp 110
+set_fast_hyperobjects 1
 
 if [[ $# -eq 0 ]]
 then
