@@ -73,6 +73,11 @@ set_spoof()
     SPOOF=$1
 }
 
+set_commutative()
+{
+    COMM=$1
+}
+
 set_fast_hyperobjects()
 {
     FASTHYPER=$1
@@ -308,10 +313,16 @@ config()
         HFLAG=""
     fi
 
+    CANCOMM=$COMM
+    if [[ ! $1 -eq 1 ]]
+    then
+        CANCOMM=0
+    fi
+
     date
     CONF=$1"$SEP"$2"$SEP"$3
     CONFSUF=$1$2$3
-    make_sentinel $((1-$1)) $3 0 1 1 $2 $2 1
+    make_sentinel $((1-$1)) $3 0 1 1 $2 $2 1 $CANCOMM
 }
 
 make_sentinel()
@@ -328,6 +339,7 @@ make_sentinel()
     printf "#define SLOWPATH_LOOKUP %s\n" "$6" >> ${SENT}
     printf "#define INLINE_FULL_LOOKUP %s\n" "$7" >> ${SENT}
     printf "#define INLINE_ALL_TLS %s\n" "$8" >> ${SENT}
+    printf "#define COMM_REDUCER %s\n" "$9" >> ${SENT}
     printf "#endif\n" >> ${SENT}
 }
 
@@ -622,7 +634,8 @@ full_stress_test()
 set_spoof 1
 set_reps 5
 set_confexp 110
-set_fast_hyperobjects 1
+set_fast_hyperobjects 0
+set_commutative 1
 
 if [[ $# -eq 0 ]]
 then
