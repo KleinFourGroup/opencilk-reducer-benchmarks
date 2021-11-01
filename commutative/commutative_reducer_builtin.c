@@ -19,6 +19,7 @@ void eval_commutative_red_builtin(Vector* arr, int* indices) {
   fasttime_t start = gettime();
   // Sum
   for (int j = 0; j < NUM_SUM_OUTER * NUM_SUM_INNER; j += NUM_SUM_INNER) {
+    //printf("Block %d\n", j / NUM_SUM_INNER);
 #pragma cilk grainsize 1
     cilk_for (int i = 0; i < NUM_SUM_INNER; i++) {
       vector_add(&COM_REDUCER_VIEW(n_com), &arr[indices[i + j]]);

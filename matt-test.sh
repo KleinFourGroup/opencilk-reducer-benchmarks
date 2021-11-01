@@ -54,6 +54,7 @@ parse_range()
         full) set_range 1 8;;
         fast) set_range 1 3;;
         serial) set_range 1 1;;
+        max) set_range 8 8;;
         *) echo "Unrecognized input setting; defaulting to 'fast'"; set_range 1 3;;
     esac
 }
@@ -631,7 +632,7 @@ full_stress_test()
 
 #### Actually run the tests
 
-set_spoof 1
+set_spoof 0
 set_reps 5
 set_confexp 110
 set_fast_hyperobjects 0

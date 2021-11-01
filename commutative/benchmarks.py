@@ -4,11 +4,11 @@ import statistics
 
 
 vector_lens = [2, 8, 16, 32, 64, 128]
-worker_nums = [1, 2, 4, 8]
+worker_nums = [8] # [1, 2, 4, 8]
 methods = {
     0: "serial",
     1: "associative",
-    2: "commutative",
+    #2: "commutative",
     3: "commutative_builtin",
 }
 
@@ -16,6 +16,7 @@ reps = 3
 
 INF = 10000
 
+verbose = False
 
 class Result(object):
     def __init__(self):
@@ -24,6 +25,9 @@ class Result(object):
         self.extras = []
 
     def insert(self, input_str):
+        input_str = input_str.split("\n")[-1]
+        if verbose:
+            print("Input: " + input_str)
         time = input_str.split("\t")[0]
         value = input_str.split("\t")[1]
         extra = " ".join(input_str.split("\t")[2:])
@@ -32,7 +36,7 @@ class Result(object):
             self.value = value
         else:
             if self.value != value:
-                raise AssertionError("Wrong answer!")
+                raise AssertionError("Wrong answer! {} != {}".format(self.value, value))
         self.times.append(float(time))
         self.extras.append(extra)
 
@@ -61,6 +65,8 @@ def run_benchmark(worker_num, vector_len):
                 stderr=subprocess.STDOUT)
         process.wait()
 
+        if verbose:
+            print("make VECTOR_LEN={} METHOD={}".format(vector_len, method))
         process = subprocess.Popen(
                 "make VECTOR_LEN={} METHOD={}".format(vector_len, method).split(' '),
                 stdout=subprocess.DEVNULL,
@@ -70,8 +76,11 @@ def run_benchmark(worker_num, vector_len):
         result = Result()
 
         for i in range(reps):
-            command = "CILK_NWORKERS={} taskset -c 1-{} ./main".format(
-                worker_num, worker_num)
+            taskset = "taskset -c 1-{}".format(worker_num)
+            command = "CILK_NWORKERS={} ./main".format(
+                worker_num)
+            if verbose:
+                print(command)
             output = os.popen(command).read()
             output = output.strip()
             result.insert(output)

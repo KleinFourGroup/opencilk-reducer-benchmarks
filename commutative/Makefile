@@ -5,9 +5,9 @@ HEADERS = $(wildcard *.h)
 PRODUCT_SOURCES = $(wildcard *.c)
 PRODUCT_OBJECTS = $(PRODUCT_SOURCES:.c=.o)
 
-CFLAGS := -Wall -O1 -g -fopencilk -fno-vectorize -fno-slp-vectorize
+CFLAGS := -Wall -O3 -g -fopencilk -fno-vectorize -fno-slp-vectorize
 EXTRA_CFLAGS :=
-LDFLAGS := -fopencilk -fcilktool=cilkscale
+LDFLAGS := -fopencilk
 
 ifneq ($(VECTOR_LEN),)
 	EXTRA_CFLAGS := -DVECTOR_LEN=$(VECTOR_LEN) $(EXTRA_CFLAGS)
