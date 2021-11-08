@@ -13,8 +13,18 @@ then
 else
     CANPROFILE=1
 fi
+
 PERF=perf.csv
+PERFCOMM=perf_comm.csv
+
 OPT=-O3
+
+#### Commuative reducer test codes
+ISCOMM=0
+CT_S=0
+CT_A=1
+CT_C=2
+COMMTEST=$CT_S
 
 #### Formatting
 SEP="\t"
@@ -142,6 +152,9 @@ set_inputs()
     DEDUP_REDC=(-c -i $DEDUP_TEST/media.dat -o reducer.dat.ddp)
     DEDUP_SERC=(-c -i $DEDUP_TEST/media.dat -o serial.dat.ddp)
     DEDUP_REDU=(-u -i reducer.dat.ddp -o uncompressed.dat)
+    
+    COMM_HIST=(256 $(($INTSUM*2/5)))
+    COMM_VECADD=(256 $(($INTSUM*2/5)))
 }
 
 
@@ -159,15 +172,37 @@ over_worker_range()
     NWORKERS=$STARTNWORKERS
 }
 
+over_commutative()
+{
+    ISCOMM=1
+    for ((COMMTEST=$CT_S;COMMTEST<=$CT_C;COMMTEST++))
+    do
+        $@
+    done
+    ISCOMM=0
+    COMMTEST=$CT_S
+}
+
 print_to_perf()
 {
-    printf "$1$SEP" >> $PERF
-    printf "$NWORKERS$SEP" >> $PERF
-    printf "$CONF$SEP" >> $PERF
-    printf "$RUNTIME$SEP" >> $PERF
-    printf "$AUXDATA$SEP" >> $PERF
-    printf "$RETCODE" >> $PERF
-    printf "%s\n" "$ENDROW" >> $PERF
+    if [[ $ISCOMM -eq 0 ]]
+    then
+        OFILE=$PERF
+    else
+        OFILE=$PERFCOMM
+    fi
+
+    printf "$1$SEP" >> $OFILE
+    printf "$NWORKERS$SEP" >> $OFILE
+    if [[ ! $ISCOMM -eq 0 ]]
+    then
+        printf "$COMMTEST$SEP" >> $OFILE
+    fi
+    printf "$CONF$SEP" >> $OFILE
+    printf "$RUNTIME$SEP" >> $OFILE
+    printf "$AUXDATA$SEP" >> $OFILE
+    printf "$RETCODE" >> $OFILE
+    printf "%s\n" "$ENDROW" >> $OFILE
 }
 
 #### Running and profiling primitives
@@ -454,6 +489,12 @@ compile()
     $CC $OPT -g -c -DTIMING_COUNT=$REPS -fopencilk -fno-vectorize -o peer_set_pure_test.o peer_set_pure_test.c
     $CC $OPT -S -emit-llvm -DTIMING_COUNT=$REPS -fopencilk -o peer_set_pure_test.ll peer_set_pure_test.c
     $CC $OPT -fopencilk ktiming.o peer_set_pure_test.o -o peer_set_pure_test_$CONFSUF
+
+    if [[ $CANCOMM -eq 1 ]]
+    then
+        compile_test comm_histogram
+        compile_test comm_vecadd
+    fi
 }
 
 #### Cleanup
@@ -485,13 +526,16 @@ clean_exe()
     rm -rf dedup-serial_*
     cd dedup/src; make -s clean; cd ../..
 
+    rm -rf comm_histogram_*
+    rm -rf comm_vecadd_*
+
     rm -rf peer_set_pure_test_*
     rm -rf *.o *.s *.ll
 }
 
 clean_all()
 {
-    rm -rf build_*.txt perf.csv
+    rm -rf build_*.txt perf.csv perf_comm.csv
     rm -rf  *.bmp *.valsig *.prof *.dat *.ddp logs/ asm/
     clean_exe
 }
@@ -570,6 +614,18 @@ test_dedup()
     profile_test "dedup" dedup-reducer ${DEDUP_REDC[@]}
 }
 
+test_commutative_histogram()
+{
+    run_test "commutative histogram" default_parse default_check comm_histogram ${COMM_HIST[@]} $COMMTEST
+    profile_test "commutative histogram" comm_histogram ${COMM_HIST[@]} $COMMTEST
+}
+
+test_commutative_vector_add()
+{
+    run_test "commutative vector addition" default_parse default_check comm_vecadd ${COMM_VECADD[@]} $COMMTEST
+    profile_test "commutative vector addition" comm_vecadd ${COMM_VECADD[@]} $COMMTEST
+}
+
 #### Running everything
 
 make_runtime()
@@ -600,6 +656,15 @@ run_tests()
     over_worker_range test_Mandelbrot
 
     over_worker_range test_dedup
+
+    if [[ $CANCOMM -eq 1 ]]
+    then
+        echo "Running commutative tests"
+        touch $PERFCOMM
+        echo "${COMMENT}Performance data in $PERFCOMM"
+        over_worker_range over_commutative test_commutative_histogram
+        over_worker_range over_commutative test_commutative_vector_add
+    fi
 }
 
 build_and_test()
