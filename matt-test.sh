@@ -86,7 +86,19 @@ set_spoof()
 
 set_commutative()
 {
-    COMM=$1
+    if [[ ! $1 -eq 0 ]]
+    then
+        COMM=1
+        if [[ ! $1 -eq 1 ]]
+        then
+            ONLYCOMM=1
+        else
+            ONLYCOMM=0
+        fi
+    else
+        COMM=0
+        ONLYCOMM=0
+    fi
 }
 
 set_fast_hyperobjects()
@@ -640,22 +652,25 @@ run_tests()
     touch $PERF
     echo "${COMMENT}Performance data in $PERF"
 
-    over_worker_range test_intsum
-    over_worker_range test_fib
-    over_worker_range test_histogram
-    over_worker_range test_intlist
+    if [[ $ONLYCOMM -eq 0 ]]
+    then
+        over_worker_range test_intsum
+        over_worker_range test_fib
+        over_worker_range test_histogram
+        over_worker_range test_intlist
 
-    over_worker_range test_cilkscale_fib
-    # Uses an atomic
-    # over_worker_range test_cilkscale_intsum
-    over_worker_range test_fft
-    over_worker_range test_apsp
-    
-    over_worker_range test_bfs
-    over_worker_range test_BlackScholes
-    over_worker_range test_Mandelbrot
+        over_worker_range test_cilkscale_fib
+        # Uses an atomic
+        # over_worker_range test_cilkscale_intsum
+        over_worker_range test_fft
+        over_worker_range test_apsp
+        
+        over_worker_range test_bfs
+        over_worker_range test_BlackScholes
+        over_worker_range test_Mandelbrot
 
-    over_worker_range test_dedup
+        over_worker_range test_dedup
+    fi
 
     if [[ $CANCOMM -eq 1 ]]
     then
@@ -701,7 +716,7 @@ set_spoof 0
 set_reps 5
 set_confexp 110
 set_fast_hyperobjects 0
-set_commutative 1
+set_commutative 2
 
 if [[ $# -eq 0 ]]
 then
