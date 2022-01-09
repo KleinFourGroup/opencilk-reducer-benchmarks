@@ -67,6 +67,15 @@ uint64_t test_reducer_atomic(uint64_t * restrict arr, uint64_t num, uint64_t siz
     return array_sum_serial;
 }
 
+uint64_t test_reducer_trueatomic(uint64_t * restrict arr, uint64_t num, uint64_t size) {
+    cilk_for (uint64_t i = 0; i < num; i++) {
+        __atomic_fetch_add(&array_sum_serial, arr[i % size], __ATOMIC_SEQ_CST);
+        // array_sum_serial += arr[i % size];
+    }
+
+    return array_sum_serial;
+}
+
 int main(int argc, const char **args) {
     uint64_t i, n;
     uint64_t * arr = NULL;
@@ -103,7 +112,7 @@ int main(int argc, const char **args) {
         case 2:
             sum = test_reducer_parallel(arr, n, 1000000); break;
         case 3:
-            sum = test_reducer_atomic(arr, n, 1000000); break;
+            sum = test_reducer_trueatomic(arr, n, 1000000); break;
         default:
             break;
         }

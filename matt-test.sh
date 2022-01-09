@@ -14,13 +14,20 @@ else
     CANPROFILE=1
 fi
 
-PERF=perf.csv
+# PERF=perf.csv
+
+PERFOPT=perf_opt.csv
 PERFCOMM=perf_comm.csv
+PERFSCALE=perf_scale.csv
 
 OPT=-O3
 
+#### Test identifiers
+ISOPTTEST=1
+ISCOMMTEST=2
+ISSCALETEST=3
+
 #### Commuative reducer test codes
-ISCOMM=0
 CT_S=0
 CT_A=1
 CT_C=2
@@ -48,6 +55,17 @@ CONF=""
 CONFSUF=""
 
 #### Parsing arguments
+
+parse_testexp()
+{
+    case "$1" in
+        full) set_testexp "111";;
+        opt) set_testexp "100";;
+        comm) set_testexp "010";;
+        scale) set_testexp "001";;
+        *) set_testexp "$1";;
+    esac
+}
 
 parse_confexp()
 {
@@ -84,23 +102,6 @@ set_spoof()
     SPOOF=$1
 }
 
-set_commutative()
-{
-    if [[ ! $1 -eq 0 ]]
-    then
-        COMM=1
-        if [[ ! $1 -eq 1 ]]
-        then
-            ONLYCOMM=1
-        else
-            ONLYCOMM=0
-        fi
-    else
-        COMM=0
-        ONLYCOMM=0
-    fi
-}
-
 set_fast_hyperobjects()
 {
     FASTHYPER=$1
@@ -109,6 +110,11 @@ set_fast_hyperobjects()
 set_reps()
 {
     REPS=$1
+}
+
+set_testexp()
+{
+    TESTEXP="$1"
 }
 
 set_confexp()
@@ -186,29 +192,45 @@ over_worker_range()
 
 over_commutative()
 {
-    ISCOMM=1
     for ((COMMTEST=$CT_S;COMMTEST<=$CT_C;COMMTEST++))
     do
         $@
     done
-    ISCOMM=0
     COMMTEST=$CT_S
+}
+
+over_bins()
+{
+    BINSTEP=256
+    BINMAX=4096
+    if [[ $ISSPA -eq 1 ]]
+    then
+        BINSTEP=64
+        BINMAX=1024
+    fi
+
+
+    BINS=$BINSTEP
+    for ((BINS=$BINSTEP;BINS<=$BINMAX;BINS+=$BINSTEP))
+    do
+        $@
+    done
+    BINS=$BINSTEP
 }
 
 print_to_perf()
 {
-    if [[ $ISCOMM -eq 0 ]]
-    then
-        OFILE=$PERF
-    else
-        OFILE=$PERFCOMM
-    fi
+    OFILE=$PERF
 
     printf "$1$SEP" >> $OFILE
     printf "$NWORKERS$SEP" >> $OFILE
-    if [[ ! $ISCOMM -eq 0 ]]
+    if [[ $WHICHTEST -eq $ISCOMMTEST ]]
     then
         printf "$COMMTEST$SEP" >> $OFILE
+    fi
+    if [[ $WHICHTEST -eq $ISSCALETEST ]]
+    then
+        printf "$BINS$SEP" >> $OFILE
     fi
     printf "$CONF$SEP" >> $OFILE
     printf "$RUNTIME$SEP" >> $OFILE
@@ -351,7 +373,7 @@ profile_test()
 
 config()
 {
-    echo "$SECTION Running test | SPA: $1; Inline: $2; Peer: $3 $SECTION"
+    echo "$SECTION Running test | SPA: $1; Inline: $2; Peer: $3; Commutative: $4 $SECTION"
 
     # Setting hidden checks
     if [[ (! FASTHYPER -eq 0) && (! $3 -eq 0) ]]
@@ -361,16 +383,10 @@ config()
         HFLAG=""
     fi
 
-    CANCOMM=$COMM
-    if [[ ! $1 -eq 1 ]]
-    then
-        CANCOMM=0
-    fi
-
     date
     CONF=$1"$SEP"$2"$SEP"$3
-    CONFSUF=$1$2$3
-    make_sentinel $((1-$1)) $3 0 1 1 $2 $2 1 $CANCOMM
+    CONFSUF=$1$2$3-$WHICHTEST
+    make_sentinel $((1-$1)) $3 0 1 1 $2 $2 1 $4
 }
 
 make_sentinel()
@@ -396,10 +412,13 @@ build()
     LOC="$(pwd)"
     echo "Building cheetah"
     echo "${COMMENT}cmake output in $LOC/logs/build_${CONFSUF}_log.txt"
-    cd ..
-    rm ./build/lib/clang/10.0.1/lib/x86_64-unknown-linux-gnu/libopencilk-abi.bc
-    sh opencilk.sh build &> $LOC/logs/build_${CONFSUF}_log.txt
-    cd stress_test
+    if [[ !($SPOOF -eq 2) ]]
+    then
+        cd ..
+        rm ./build/lib/clang/10.0.1/lib/x86_64-unknown-linux-gnu/libopencilk-abi.bc
+        sh opencilk.sh build &> $LOC/logs/build_${CONFSUF}_log.txt
+        cd stress_test
+    fi
 }
 
 #### Compilation
@@ -475,6 +494,50 @@ compile_dedup()
     cp dedup/src/dedup-serial dedup-serial_$CONFSUF
 }
 
+compile_opt_tests()
+{
+    if [[ !($SPOOF -eq 2) ]]
+    then
+        compile_test intsum_check
+        compile_test fib
+        compile_test histogram
+        compile_test intlist
+
+        compile_cilkscale_test cilkscale_fib
+        compile_cilkscale_test cilkscale_intsum
+        compile_cilkscale_test_fft fft
+        compile_cilkscale_test_cxx apsp-matteo
+
+        compile_with_make bfs pbfs
+        compile_with_make BlackScholes BlackScholes
+        compile_with_make Mandelbrot Mandelbrot
+        compile_dedup
+
+        rm -rf peer_set_pure_test_$CONFSUF
+        $CC $OPT -g -c -DTIMING_COUNT=$REPS -fopencilk -fno-vectorize -o peer_set_pure_test.o peer_set_pure_test.c
+        $CC $OPT -S -emit-llvm -DTIMING_COUNT=$REPS -fopencilk -o peer_set_pure_test.ll peer_set_pure_test.c
+        $CC $OPT -fopencilk ktiming.o peer_set_pure_test.o -o peer_set_pure_test_$CONFSUF
+    fi
+}
+
+compile_comm_tests()
+{
+    if [[ !($SPOOF -eq 2) ]]
+    then
+        compile_test comm_histogram
+        compile_test comm_vecadd
+    fi
+}
+
+compile_scale_tests()
+{
+    if [[ !($SPOOF -eq 2) ]]
+    then
+        compile_test scale_histogram_arr_red
+        compile_test scale_histogram_red_arr
+    fi
+}
+
 compile()
 {
     echo "Compiling tests"
@@ -482,30 +545,20 @@ compile()
     $CC $OPT -g -c -DTIMING_COUNT=$1 -o ktiming.o ktiming.c
     $CC $OPT -g -c -o getoptions.o getoptions.c
     
-    compile_test intsum_check
-    compile_test fib
-    compile_test histogram
-    compile_test intlist
     
-    compile_cilkscale_test cilkscale_fib
-    compile_cilkscale_test cilkscale_intsum
-    compile_cilkscale_test_fft fft
-    compile_cilkscale_test_cxx apsp-matteo
-    
-    compile_with_make bfs pbfs
-    compile_with_make BlackScholes BlackScholes
-    compile_with_make Mandelbrot Mandelbrot
-    compile_dedup
-    
-    rm -rf peer_set_pure_test_$CONFSUF
-    $CC $OPT -g -c -DTIMING_COUNT=$REPS -fopencilk -fno-vectorize -o peer_set_pure_test.o peer_set_pure_test.c
-    $CC $OPT -S -emit-llvm -DTIMING_COUNT=$REPS -fopencilk -o peer_set_pure_test.ll peer_set_pure_test.c
-    $CC $OPT -fopencilk ktiming.o peer_set_pure_test.o -o peer_set_pure_test_$CONFSUF
-
-    if [[ $CANCOMM -eq 1 ]]
+    if [[ $WHICHTEST -eq $ISOPTTEST ]]
     then
-        compile_test comm_histogram
-        compile_test comm_vecadd
+        compile_opt_tests
+    fi
+
+    if [[ $WHICHTEST -eq $ISCOMMTEST ]]
+    then
+        compile_comm_tests
+    fi
+
+    if [[ $WHICHTEST -eq $ISSCALETEST ]]
+    then
+        compile_scale_tests
     fi
 }
 
@@ -518,6 +571,7 @@ clean_make()
 
 clean_exe()
 {
+    # nm ./fib_*
     rm -rf intsum_check_*
     rm -rf fib_*
     rm -rf histogram_*
@@ -541,13 +595,16 @@ clean_exe()
     rm -rf comm_histogram_*
     rm -rf comm_vecadd_*
 
+    rm -rf scale_histogram_arr_red_*
+    rm -rf scale_histogram_red_arr_*
+
     rm -rf peer_set_pure_test_*
     rm -rf *.o *.s *.ll
 }
 
 clean_all()
 {
-    rm -rf build_*.txt perf.csv perf_comm.csv
+    rm -rf build_*.txt perf_*.csv
     rm -rf  *.bmp *.valsig *.prof *.dat *.ddp logs/ asm/
     clean_exe
 }
@@ -638,6 +695,20 @@ test_commutative_vector_add()
     profile_test "commutative vector addition" comm_vecadd ${COMM_VECADD[@]} $COMMTEST
 }
 
+test_scale_histogram_arr_red()
+{
+    S_HIST_AR=($BINS $(($INTSUM*2/5)))
+    run_test "scaling histogram (array of reducers)" default_parse default_check scale_histogram_arr_red ${S_HIST_AR[@]}
+    profile_test "scaling histogram (array of reducers)" scale_histogram_arr_red ${S_HIST_AR[@]}
+}
+
+test_scale_histogram_red_arr()
+{
+    S_HIST_AR=($BINS $(($INTSUM*2/5)))
+    run_test "scaling histogram (reducer over arrays)" default_parse default_check scale_histogram_red_arr ${S_HIST_AR[@]}
+    profile_test "scaling histogram (reducer over arrays)" scale_histogram_red_arr ${S_HIST_AR[@]}
+}
+
 #### Running everything
 
 make_runtime()
@@ -646,13 +717,14 @@ make_runtime()
     compile
 }
 
-run_tests()
+run_opt_tests()
 {
-    echo "Running tests"
+    echo "Running optimization tests"
+    PERF=$PERFOPT
     touch $PERF
     echo "${COMMENT}Performance data in $PERF"
 
-    if [[ $ONLYCOMM -eq 0 ]]
+    if [[ !($SPOOF -eq 2) ]]
     then
         over_worker_range test_intsum
         over_worker_range test_fib
@@ -672,13 +744,54 @@ run_tests()
         over_worker_range test_dedup
     fi
 
-    if [[ $CANCOMM -eq 1 ]]
+    echo "Finished optimization tests"
+}
+
+run_comm_tests()
+{
+    echo "Running commutative tests"
+    PERF=$PERFCOMM
+    touch $PERF
+    echo "${COMMENT}Performance data in $PERF"
+    if [[ !($SPOOF -eq 2) ]]
     then
-        echo "Running commutative tests"
-        touch $PERFCOMM
-        echo "${COMMENT}Performance data in $PERFCOMM"
         over_worker_range over_commutative test_commutative_histogram
         over_worker_range over_commutative test_commutative_vector_add
+    fi
+
+    echo "Finished commutative tests"
+}
+
+run_scale_tests()
+{
+    echo "Running scale tests"
+    PERF=$PERFSCALE
+    touch $PERF
+    echo "${COMMENT}Performance data in $PERF"
+    if [[ !($SPOOF -eq 2) ]]
+    then
+        over_worker_range over_bins test_scale_histogram_arr_red
+        over_worker_range over_bins test_scale_histogram_red_arr
+    fi
+
+    echo "Finished scale tests"
+}
+
+run_tests()
+{
+    if [[ $WHICHTEST -eq $ISOPTTEST ]]
+    then
+        run_opt_tests
+    fi
+
+    if [[ $WHICHTEST -eq $ISCOMMTEST ]]
+    then
+        run_comm_tests
+    fi
+
+    if [[ $WHICHTEST -eq $ISSCALETEST ]]
+    then
+        run_scale_tests
     fi
 }
 
@@ -686,9 +799,35 @@ build_and_test()
 {
     if [[ $1$2$3 =~ $CONFEXP ]]
     then
-        config $1 $2 $3
-        make_runtime
-        run_tests
+        # Opt tests
+        if [[ $TESTEXP =~ 1.. ]]
+        then
+            WHICHTEST=$ISOPTTEST
+            config $1 $2 $3 0
+            make_runtime
+            run_tests
+        fi
+        # Commutative tests
+        if [[ $TESTEXP =~ .1. ]]
+        then
+            # Only support comutative + SPA
+            if [[ $1 -eq 1 ]]
+            then
+                WHICHTEST=$ISCOMMTEST
+                config $1 $2 $3 1
+                make_runtime
+                run_tests
+            fi
+        fi
+        # Scale tests
+        if [[ $TESTEXP =~ ..1 ]]
+        then
+            WHICHTEST=$ISSCALETEST
+            ISSPA=$1
+            config $1 $2 $3 0
+            make_runtime
+            run_tests
+        fi
     fi
 }
 
@@ -712,42 +851,36 @@ full_stress_test()
 
 #### Actually run the tests
 
-set_spoof 0
+set_spoof 1
 set_reps 5
+set_testexp 111
 set_confexp 110
+
 set_fast_hyperobjects 0
-set_commutative 2
+
+parse_range fast
+set_profiling 0
 
 if [[ $# -eq 0 ]]
 then
+    parse_testexp full
     parse_confexp 110
     parse_inputs fast
-    parse_range fast
-    set_profiling 0
 elif [[ $# -eq 1 ]]
 then
-    parse_confexp "$1"
+    parse_testexp "$1"
+    parse_confexp 110
     parse_inputs fast
-    parse_range fast
-    set_profiling 0
 elif [[ $# -eq 2 ]]
 then
-    parse_confexp "$1"
-    parse_inputs $2
-    parse_range fast
-    set_profiling 0
+    parse_testexp "$1"
+    parse_confexp "$2"
+    parse_inputs fast
 elif [[ $# -eq 3 ]]
 then
-    parse_confexp "$1"
-    parse_inputs $2
-    parse_range $3
-    set_profiling 0
-elif [[ $# -eq 4 ]]
-then
-    parse_confexp "$1"
-    parse_inputs $2
-    parse_range $3
-    set_profiling $4
+    parse_testexp "$1"
+    parse_confexp "$2"
+    parse_inputs "$3"
 else
     echo "Too many arguments!"
     return 1

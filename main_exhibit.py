@@ -11,7 +11,7 @@ rwidth = 0.75
 # I/O
 
 def parse_file():
-    fin = open("perf.csv")
+    fin = open("../archive/perf.csv")
     data_csv = csv.reader(fin, delimiter="\t")
     for row in data_csv:
         test = row[0]
@@ -27,8 +27,8 @@ def parse_file():
 
 # Utils
 
-def getmax(data):
-    vals = [i[-1] for i in data if not isinstance(i[-1], str)]
+def getmax(data, ind=-1):
+    vals = [i[ind] for i in data if not isinstance(i[ind], str)]
     return max(vals)
 
 def getkey(row):
@@ -73,7 +73,7 @@ def tableheader(hasTime, name=None):
 def getperf(row, maxv):
     if isinstance(row[-1], str):
         return ["\\multicolumn{{2}}{{c|}}{{{}}}".format("???")]
-    return ["{:.3f}".format(row[-2]), rule(row[-1], maxv)]
+    return ["{:2.1f}\%".format((row[-2]-1)*100), rule((row[-1]-1)*100, (maxv-1)*100)]
 
 def getrow(row, maxv):
     r = []
@@ -108,6 +108,7 @@ def preptable(raw_data, overwrite):
     
 def printtable(perftable, hasTime):
     maxv = getmax(perftable)
+    print(maxv)
     print(tablebegin())
     print(tableheader(hasTime))
     for row in perftable:
@@ -159,6 +160,7 @@ data = mergedata(raw_data, w)
 #print("\\hline\n\\end{tabular*}\n")
 printtable(data, False)
 
+"""
 for test in raw_data:
     fdat = [row.copy() for row in raw_data[test] if row[0] == w]
     addspeedup(fdat, True)
@@ -169,6 +171,7 @@ for test in raw_data:
     for row in tdata:
         print(getrow(row, maxv))
     print("\\hline\n\\end{tabular*}\n")
+"""
 
 for row in opt:
     print("{} {:.3f}".format(row[0], row[-1]))
