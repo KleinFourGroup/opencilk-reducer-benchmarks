@@ -38,6 +38,8 @@
 
 #define NSEC_TO_SEC(x) ((double)(x)*1.0e-9)
 
+uint64_t extzero = 0;
+
 clockmark_t ktiming_getmark(void) {
     struct timespec temp = {0, 0};
     uint64_t nanos;

@@ -7,7 +7,10 @@
 
 uint64_t bins;
 
+uint64_t merges, steals;
+
 typedef struct Vector {
+    uint64_t count;
     uint64_t * ele; // MAK: Max for test
 } __attribute__((aligned (64))) Vector;
 
@@ -22,12 +25,15 @@ void vector_add(Vector* left, Vector* right) {
 void vector_reduce(void* key, void* left, void* right) {
     Vector* left_v = (Vector*) left;
     Vector* right_v = (Vector*) right;
+
+    left_v->count = left_v->count + right_v->count;
     for (int i = 0; i < bins; i++) {
         left_v->ele[i] = left_v->ele[i] + right_v->ele[i];
     }
 }
 
 void vector_identity(void* key, void* value) {
+    ((Vector*)value)->count = 1;
     ((Vector*)value)->ele = (uint64_t *)malloc(bins * sizeof(uint64_t));
     for (int i = 0; i < bins; i++) {
         ((Vector*)value)->ele[i] = 0;
@@ -54,10 +60,14 @@ void set_bins(int num) {
 }
 
 static inline void prepare() {
+    // Avoid off by one err
+    REDUCER_VIEW(a_histogram).count = 0;
+
     if (REDUCER_VIEW(a_histogram).ele == NULL) {
         REDUCER_VIEW(a_histogram).ele =
             (uint64_t *)malloc(bins * sizeof(uint64_t));
     }
+
     for (int i = 0; i < bins; i++) {
         REDUCER_VIEW(a_histogram).ele[i] = 0;
     }
@@ -102,6 +112,9 @@ void test_reducer_associative(uint64_t * restrict arr, uint64_t num, uint64_t si
 }
 
 static inline uint64_t check_bins(Vector * correct) {
+    merges += REDUCER_VIEW(a_histogram).count;
+    steals += REDUCER_VIEW(a_histogram).count;
+
     for (uint64_t i = 0; i < bins; i++) {
         if (correct->ele[i] != REDUCER_VIEW(a_histogram).ele[i]) return 0;
     }
@@ -124,6 +137,9 @@ int main(int argc, const char **args) {
     b = atol(args[1]);
     n = atol(args[2]);
 
+    merges = 0;
+    steals = 0;
+
     set_bins(b);
     arr = (uint64_t *) malloc(1000000 * sizeof(uint64_t));
 
@@ -143,6 +159,7 @@ int main(int argc, const char **args) {
     }
     printf("Result: %d/%d successes!\n", res, TIMING_COUNT);
     print_runtime(running_time, TIMING_COUNT);
+    printf("%lu\n%lu\n", merges, steals);
 
     return res != TIMING_COUNT;
 }

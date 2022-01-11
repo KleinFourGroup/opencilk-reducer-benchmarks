@@ -107,6 +107,11 @@ set_fast_hyperobjects()
     FASTHYPER=$1
 }
 
+set_bigspa()
+{
+    BIGSPA=$1
+}
+
 set_reps()
 {
     REPS=$1
@@ -172,7 +177,7 @@ set_inputs()
     DEDUP_REDU=(-u -i reducer.dat.ddp -o uncompressed.dat)
     
     COMM_HIST=(256 $(($INTSUM*2/5)))
-    COMM_VECADD=(256 $(($INTSUM*2/5)))
+    COMM_VECADD=(256 $(($INTSUM/20)))
 }
 
 
@@ -201,17 +206,23 @@ over_commutative()
 
 over_bins()
 {
-    BINSTEP=256
-    BINMAX=4096
-    if [[ $ISSPA -eq 1 ]]
+    if [[ !($BIGSPA -eq 0) ]]
     then
-        BINSTEP=64
-        BINMAX=1024
+        BINSTEP=128
+        BINMAX=8192
+    else
+        BINSTEP=512
+        BINMAX=4096
+        if [[ $ISSPA -eq 1 ]]
+        then
+            BINSTEP=128
+            BINMAX=1024
+        fi
     fi
 
 
     BINS=$BINSTEP
-    for ((BINS=$BINSTEP;BINS<=$BINMAX;BINS+=$BINSTEP))
+    for ((BINS=$BINSTEP;BINS<$BINMAX;BINS+=$BINSTEP))
     do
         $@
     done
@@ -231,6 +242,8 @@ print_to_perf()
     if [[ $WHICHTEST -eq $ISSCALETEST ]]
     then
         printf "$BINS$SEP" >> $OFILE
+        printf "$MERGES$SEP" >> $OFILE
+        printf "$STEALS$SEP" >> $OFILE
     fi
     printf "$CONF$SEP" >> $OFILE
     printf "$RUNTIME$SEP" >> $OFILE
@@ -295,6 +308,27 @@ cilkscale_parse()
     SPAN=$(echo "$RAWOUTPUT" | tail -1 | cut -d',' -f3)
     PARALLELISM=$(echo "$RAWOUTPUT" | tail -1 | cut -d',' -f4)
     AUXDATA="$WORK,$SPAN,$PARALLELISM"
+}
+
+scaling_parse()
+{
+    RAWOUTPUT="$(run_exe $@)"
+    RETCODE=$?
+    RUNTIME=$(echo "$RAWOUTPUT" | tail -3 | head -1)
+    MERGES=$(echo "$RAWOUTPUT" | tail -2 | head -1)
+    STEALS=$(echo "$RAWOUTPUT" | tail -1)
+    AUXDATA=""
+}
+
+scaling_cilkscale_parse()
+{
+    RAWOUTPUT="$(run_exe $@)"
+    RETCODE=$?
+    RUNTIME=$(echo "$RAWOUTPUT" | tail -5 | head -1)
+    MERGES=$(echo "$RAWOUTPUT" | tail -4 | head -1)
+    STEALS=$(echo "$RAWOUTPUT" | tail -3 | head -1)
+    PARALLELISM=$(echo "$RAWOUTPUT" | tail -1 | cut -d',' -f4)
+    AUXDATA="$PARALLELISM"
 }
 
 default_check()
@@ -386,7 +420,7 @@ config()
     date
     CONF=$1"$SEP"$2"$SEP"$3
     CONFSUF=$1$2$3-$WHICHTEST
-    make_sentinel $((1-$1)) $3 0 1 1 $2 $2 1 $4
+    make_sentinel $((1-$1)) $3 0 1 1 $2 $2 1 $4 $BIGSPA
 }
 
 make_sentinel()
@@ -404,6 +438,7 @@ make_sentinel()
     printf "#define INLINE_FULL_LOOKUP %s\n" "$7" >> ${SENT}
     printf "#define INLINE_ALL_TLS %s\n" "$8" >> ${SENT}
     printf "#define COMM_REDUCER %s\n" "$9" >> ${SENT}
+    printf "#define BIG_SPA %s\n" "${10}" >> ${SENT}
     printf "#endif\n" >> ${SENT}
 }
 
@@ -535,6 +570,7 @@ compile_scale_tests()
     then
         compile_test scale_histogram_arr_red
         compile_test scale_histogram_red_arr
+        compile_cilkscale_test scale_cilkscale_histogram_arr_red
     fi
 }
 
@@ -697,16 +733,23 @@ test_commutative_vector_add()
 
 test_scale_histogram_arr_red()
 {
-    S_HIST_AR=($BINS $(($INTSUM*2/5)))
-    run_test "scaling histogram (array of reducers)" default_parse default_check scale_histogram_arr_red ${S_HIST_AR[@]}
+    S_HIST_AR=($BINS $(($INTSUM/5)))
+    run_test "scaling histogram (array of reducers)" scaling_parse default_check scale_histogram_arr_red ${S_HIST_AR[@]}
     profile_test "scaling histogram (array of reducers)" scale_histogram_arr_red ${S_HIST_AR[@]}
 }
 
 test_scale_histogram_red_arr()
 {
-    S_HIST_AR=($BINS $(($INTSUM*2/5)))
-    run_test "scaling histogram (reducer over arrays)" default_parse default_check scale_histogram_red_arr ${S_HIST_AR[@]}
+    S_HIST_AR=($BINS $(($INTSUM/5)))
+    run_test "scaling histogram (reducer over arrays)" scaling_parse default_check scale_histogram_red_arr ${S_HIST_AR[@]}
     profile_test "scaling histogram (reducer over arrays)" scale_histogram_red_arr ${S_HIST_AR[@]}
+}
+
+test_cilkscale_scale_histogram_arr_red()
+{
+    S_HIST_AR=($BINS $(($INTSUM/5)))
+    run_test "cilkscale histogram (array of reducers)" scaling_cilkscale_parse default_check scale_cilkscale_histogram_arr_red ${S_HIST_AR[@]}
+    profile_test "cilkscale histogram (array of reducers)" scale_cilkscale_histogram_arr_red ${S_HIST_AR[@]}
 }
 
 #### Running everything
@@ -772,6 +815,7 @@ run_scale_tests()
     then
         over_worker_range over_bins test_scale_histogram_arr_red
         over_worker_range over_bins test_scale_histogram_red_arr
+        over_worker_range over_bins test_cilkscale_scale_histogram_arr_red
     fi
 
     echo "Finished scale tests"
@@ -851,14 +895,15 @@ full_stress_test()
 
 #### Actually run the tests
 
-set_spoof 1
+set_spoof 0
 set_reps 5
 set_testexp 111
 set_confexp 110
 
 set_fast_hyperobjects 0
+set_bigspa 1
 
-parse_range fast
+parse_range max
 set_profiling 0
 
 if [[ $# -eq 0 ]]
