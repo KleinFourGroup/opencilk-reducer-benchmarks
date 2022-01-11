@@ -317,7 +317,7 @@ scaling_parse()
     RUNTIME=$(echo "$RAWOUTPUT" | tail -3 | head -1)
     MERGES=$(echo "$RAWOUTPUT" | tail -2 | head -1)
     STEALS=$(echo "$RAWOUTPUT" | tail -1)
-    AUXDATA=""
+    AUXDATA="$(($MERGES/$STEALS))"
 }
 
 scaling_cilkscale_parse()
