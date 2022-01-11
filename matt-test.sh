@@ -637,6 +637,7 @@ clean_exe()
     rm -rf comm_vecadd_*
 
     rm -rf scale_histogram_arr_red_*
+    rm -rf scale_cilkscale_histogram_arr_red_*
     rm -rf scale_histogram_red_arr_*
 
     rm -rf peer_set_pure_test_*
