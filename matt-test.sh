@@ -896,14 +896,14 @@ full_stress_test()
 #### Actually run the tests
 
 set_spoof 0
-set_reps 5
+set_reps 10
 set_testexp 111
 set_confexp 110
 
 set_fast_hyperobjects 0
 set_bigspa 1
 
-parse_range max
+parse_range full
 set_profiling 0
 
 if [[ $# -eq 0 ]]
