@@ -208,7 +208,7 @@ over_bins()
 {
     if [[ !($BIGSPA -eq 0) ]]
     then
-        BINSTEP=128
+        BINSTEP=512
         BINMAX=8192
     else
         BINSTEP=512
