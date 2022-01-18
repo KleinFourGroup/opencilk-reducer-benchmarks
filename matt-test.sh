@@ -647,7 +647,7 @@ clean_exe()
 clean_all()
 {
     rm -rf build_*.txt perf_*.csv
-    rm -rf  *.bmp *.valsig *.prof *.dat *.ddp logs/ asm/
+    rm -rf  *.bmp *.png *.valsig *.prof *.dat *.ddp logs/ asm/
     clean_exe
 }
 

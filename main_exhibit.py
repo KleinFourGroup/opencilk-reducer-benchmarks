@@ -1,6 +1,8 @@
 from statistics import geometric_mean
 import csv
 
+from matplotlib import pyplot as plt
+
 class dbtable:
     def __init__(self, fields):
         self.fields = fields
@@ -164,7 +166,7 @@ def print_opt_table(db):
     rwidth = 0.75
     print("\\begin{tabular*}{\\linewidth}[t]{@{\\extracolsep{\\fill}}|ccc|D{.}{.}{2.3}l|}")
     print("\\hline")
-    print("\\textit{Hypermap} & \\textit{Bitcode} & \\textit{Peer} & \\multicolumn{2}{c|}{\\textit{Speedup}}\\\\\\hline")
+    print("\\textit{Runtime} & \\textit{Integration} & \\textit{Compiler} & \\multicolumn{2}{c|}{\\textit{Speedup}}\\\\\\hline")
     for row in rows:
         spa = "\\checkmark" if row[0] else "$\\cdot$"
         bitcode = "\\checkmark" if row[1] else "$\\cdot$"
@@ -232,10 +234,10 @@ def speedup_comm_db(db):
 def print_comm_table(db):
     db = speedup_comm_db(db)
     tests = db.getTuples(("test", "workers"))
-    rwidth = 0.75
+    rwidth = 0.7
     print("\\begin{tabular*}{\\linewidth}[t]{@{\\extracolsep{\\fill}}|c|cc|D{.}{.}{2.3}l|}")
     print("\\hline")
-    print("\\textit{Benchmark} & \\textit{Bitcode} & \\textit{Peer} & \\multicolumn{2}{c|}{\\textit{Speedup}}\\\\\\hline")
+    print("\\textit{Benchmark} & \\textit{Integration} & \\textit{Compiler} & \\multicolumn{2}{c|}{\\textit{Speedup}}\\\\\\hline")
     for test in tests:
         test_db = dbtable(("test", "runtime", "integration", "compiler", "performance"))
         rows = db.getVals(("runtime", "integration", "compiler", "performance"),
@@ -248,6 +250,8 @@ def print_comm_table(db):
         test_db.sort(("performance",), lambda perf: abs(perf[0]))
         rows = test_db.getVals(("test", "runtime", "integration", "compiler", "performance"))
         maxv = abs(rows[-1][4])
+        test_db.sort(("performance",), lambda perf: perf[0])
+        rows = test_db.getVals(("test", "runtime", "integration", "compiler", "performance"))
         for row in rows:
             bench = "\\texttt{{{}}}".format(row[0].replace("_", "\\_"))
             bitcode = "\\checkmark" if row[2] else "$\\cdot$"
@@ -255,16 +259,30 @@ def print_comm_table(db):
             width = (abs(row[4]) / maxv) * rwidth
             rule = "\\textcolor{{{0}}}{{\\rule{{{1:.3f}in}}{{6pt}}}}".format("red" if row[4] > 0 else "blue", width)
             print("{} & {} & {} & {:.2f}\\% & {} \\\\".format(bench, bitcode, peer, row[4], rule))
-    print("\\hline\n\\end{tabular*}\n")
+        print("\\hline")
+    print("\\end{tabular*}\n")
 
 def process_scale_db(db):
     db = db.filter(("runtime", "integration", "compiler"), (True, False, False))
-    res = dbtable(("test", "bins", "tau", "performance"))
+    res = dbtable(("test", "bins", "tau", "steals", "performance"))
     rows = db.getVals(("test", "bins", "merges", "steals", "performance"))
     for row in rows:
         tau = row[2] / row[3]
-        res.addRow([row[0], row[1], tau, row[4]])
+        res.addRow([row[0], row[1], tau, row[3], row[4]])
     return res
+
+def make_fig(x_vals, y_vals, x_label, y_label, file_name):
+    ymin = min(y_vals)
+    ymax = max(y_vals)
+    plt.plot(x_vals, y_vals)
+    plt.xlabel(x_label, fontsize=24)
+    plt.ylabel(y_label, fontsize=24)
+    ax = plt.gca()
+    ax.set_ylim([0, ymax + ymin])
+    ax.tick_params(axis='both', which='major', labelsize=18)
+    #ax.locator_params(nbins=6, axis='x')
+    plt.savefig(file_name, bbox_inches='tight')
+    plt.clf()
 
 def print_scale_db(db):
     db = process_scale_db(db)
@@ -272,14 +290,49 @@ def print_scale_db(db):
     fout = open("scale.csv", "w", newline='')
     csvout = csv.writer(fout, delimiter='\t')
     for test in tests:
+        ind = tests.index(test)
+        bin_plt = []
+        tau_plt = []
+        steal_plt = []
+        perf_plt = []
         test_db = db.filter(("test",), test)
         test_db.sort(("bins",), lambda tup: abs(tup[0]))
-        bin_rows = test_db.getVals(("bins", "performance"))
+        bin_rows = test_db.getVals(("bins", "performance", "steals"))
+        for row in bin_rows:
+            bin_plt.append(row[0])
+            perf_plt.append(row[1])
+            steal_plt.append(row[2])
+        make_fig(bin_plt, steal_plt,
+                 "Histogram bins",
+                 "Steals",
+                 '{}_bin_steal.png'.format(ind))
+        make_fig(bin_plt, perf_plt,
+                 "Histogram bins",
+                 "Performance",
+                 '{}_bin_perf.png'.format(ind))
+        #
         test_db.sort(("tau",), lambda tup: abs(tup[0]))
-        tau_rows = test_db.getVals(("tau", "performance"))
-        csvout.writerow(["test", "bins", "performance", "average merges per steal", "performance"])
+        tau_rows = test_db.getVals(("tau", "performance", "steals"))
+        steal_plt = []
+        perf_plt = []
+        for row in tau_rows:
+            tau_plt.append(row[0])
+            perf_plt.append(row[1])
+            steal_plt.append(row[2])
+        make_fig(tau_plt, steal_plt,
+                 "Average merges per steal",
+                 "Steals",
+                 '{}_tau_steal.png'.format(ind))
+        make_fig(tau_plt, perf_plt,
+                 "Average merges per steal",
+                 "Performance",
+                 '{}_tau_perf.png'.format(ind))
+        #
+        csvout.writerow(["test", "bins", "performance",
+                                "average merges per steal", "performance", "steals"])
         for i in range(len(bin_rows)):
-            csvout.writerow([test[0], bin_rows[i][0], bin_rows[i][1], tau_rows[i][0], tau_rows[i][1]])
+            csvout.writerow([test[0], bin_rows[i][0], bin_rows[i][1],
+                                        tau_rows[i][0], tau_rows[i][1], tau_rows[i][2]])
     fout.close()
 
 opt_db = parse_opt_file()
